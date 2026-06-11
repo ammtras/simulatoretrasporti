@@ -111,13 +111,4 @@ class Spedizioni(ListView):
     ordering = ["-data"]  # più recenti prima
 
 
-    def get_queryset(self):
-        qs = Spedizione.objects.prefetch_related("pacchi")
-
-        for s in qs:
-            print(
-                f"Spedizione {s.id}: {s.pacchi.count()} pacchi"
-            )
-
-        return qs
 
