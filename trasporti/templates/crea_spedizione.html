@@ -1,0 +1,92 @@
+<form method="post">
+    {% csrf_token %}
+
+    <h2>Spedizione</h2>
+    {{ form.as_p }}
+
+    <h2>Pacchi</h2>
+
+{{ formset.management_form }}
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Altezza</th>
+                <th>Larghezza</th>
+                <th>Profondità</th>
+                <th>Peso</th>
+                <th>Elimina</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for f in formset %}
+            <tr>
+                <td>{{ f.altezza_cm }}</td>
+                <td>{{ f.larghezza_cm }}</td>
+                <td>{{ f.profondita_cm }}</td>
+                <td>{{ f.peso_kg }}</td>
+                <td>{{ f.DELETE }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <br>
+
+    <button type="submit" name="action" value="simulate">
+        Simula preventivi
+    </button>
+
+    <button type="submit" name="action" value="save">
+        Salva spedizione
+    </button>
+
+</form>
+
+
+{% if preventivi %}
+    <hr>
+
+    <h2>Preventivi disponibili</h2>
+
+    <ul>
+        {% for p in preventivi %}
+            <li style="{% if p.best %}background:#d4edda; font-weight:bold; padding:10px;{% endif %} margin-bottom:10px;">
+
+                <strong>{{ p.trasportatore }}</strong> - {{ p.prezzo }} €
+
+                {% if p.best %}
+                    ⭐ Miglior prezzo
+                {% endif %}
+
+                <!-- ⚠️ NIENTE FORM QUI -->
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+
+                    <input type="hidden" name="action" value="confirm">
+                    <input type="hidden" name="trasportatore" value="{{ p.trasportatore }}">
+                    <input type="hidden" name="prezzo" value="{{ p.prezzo }}">
+
+                    <!-- IMPORTANTISSIMO: devi rimandare anche il form principale -->
+                    {% for field in form %}
+                        <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+                    {% endfor %}
+
+                    {{ formset.management_form }}
+
+                    {% for f in formset %}
+                        <input type="hidden" name="{{ f.altezza_cm.name }}" value="{{ f.altezza_cm.value }}">
+                        <input type="hidden" name="{{ f.larghezza_cm.name }}" value="{{ f.larghezza_cm.value }}">
+                        <input type="hidden" name="{{ f.profondita_cm.name }}" value="{{ f.profondita_cm.value }}">
+                        <input type="hidden" name="{{ f.peso_kg.name }}" value="{{ f.peso_kg.value }}">
+                    {% endfor %}
+
+                    <button type="submit">
+                        Conferma preventivo e salva spedizione
+                    </button>
+                </form>
+
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}
