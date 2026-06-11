@@ -5,6 +5,7 @@ from .models import *
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.views.generic import ListView
 
 
 
@@ -27,7 +28,6 @@ def loggout(request):
     logout(request)
     return redirect('login')
 
-
 def calcola_preventivi(peso_totale):
     preventivi = [
         {"trasportatore": "GLS", "prezzo": peso_totale * Decimal("1.2")},
@@ -43,7 +43,6 @@ def calcola_preventivi(peso_totale):
         p["best"] = (p["prezzo"] == min_price)
 
     return preventivi
-
 
 def crea_spedizione(request):
     preventivi = None
@@ -73,6 +72,8 @@ def crea_spedizione(request):
             elif action == "confirm":
                 spedizione = form.save(commit=False)
 
+                print("PACCHI DATA:")
+                print(pacchi_data)
 
                 peso_totale = sum(
                     Decimal(p["peso_kg"])
@@ -102,3 +103,21 @@ def crea_spedizione(request):
         "formset": formset,
         "preventivi": preventivi
     })
+
+class Spedizioni(ListView):
+    model = Spedizione
+    template_name = "spedizioni.html"
+    context_object_name = "spedizioni"
+    ordering = ["-data"]  # più recenti prima
+
+
+    def get_queryset(self):
+        qs = Spedizione.objects.prefetch_related("pacchi")
+
+        for s in qs:
+            print(
+                f"Spedizione {s.id}: {s.pacchi.count()} pacchi"
+            )
+
+        return qs
+

@@ -6,7 +6,7 @@
 
     <h2>Pacchi</h2>
 
-{{ formset.management_form }}
+    {{ formset.management_form }}
 
     <table border="1">
         <thead>
@@ -31,7 +31,6 @@
         {% endfor %}
         </tbody>
     </table>
-    <br>
 
     <button type="submit" name="action" value="simulate">
         Simula preventivi
@@ -41,17 +40,14 @@
         Salva spedizione
     </button>
 
-</form>
-
-
-{% if preventivi %}
+    {% if preventivi %}
     <hr>
 
     <h2>Preventivi disponibili</h2>
 
     <ul>
         {% for p in preventivi %}
-            <li style="{% if p.best %}background:#d4edda; font-weight:bold; padding:10px;{% endif %} margin-bottom:10px;">
+            <li style="{% if p.best %}background:#d4edda; font-weight:bold;{% endif %} padding:10px; margin-bottom:10px;">
 
                 <strong>{{ p.trasportatore }}</strong> - {{ p.prezzo }} €
 
@@ -59,34 +55,18 @@
                     ⭐ Miglior prezzo
                 {% endif %}
 
-                <!-- ⚠️ NIENTE FORM QUI -->
-                <form method="post" style="display:inline;">
-                    {% csrf_token %}
-
-                    <input type="hidden" name="action" value="confirm">
-                    <input type="hidden" name="trasportatore" value="{{ p.trasportatore }}">
-                    <input type="hidden" name="prezzo" value="{{ p.prezzo }}">
-
-                    <!-- IMPORTANTISSIMO: devi rimandare anche il form principale -->
-                    {% for field in form %}
-                        <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
-                    {% endfor %}
-
-                    {{ formset.management_form }}
-
-                    {% for f in formset %}
-                        <input type="hidden" name="{{ f.altezza_cm.name }}" value="{{ f.altezza_cm.value }}">
-                        <input type="hidden" name="{{ f.larghezza_cm.name }}" value="{{ f.larghezza_cm.value }}">
-                        <input type="hidden" name="{{ f.profondita_cm.name }}" value="{{ f.profondita_cm.value }}">
-                        <input type="hidden" name="{{ f.peso_kg.name }}" value="{{ f.peso_kg.value }}">
-                    {% endfor %}
-
-                    <button type="submit">
-                        Conferma preventivo e salva spedizione
-                    </button>
-                </form>
+                <button type="submit"
+                        name="action"
+                        value="confirm"
+                        formaction=""
+                        onclick="this.form.trasportatore.value='{{ p.trasportatore }}'; this.form.prezzo.value='{{ p.prezzo }}'">
+                    Conferma preventivo e salva spedizione
+                </button>
 
             </li>
         {% endfor %}
     </ul>
+
+    <input type="hidden" name="trasportatore">
+    <input type="hidden" name="prezzo">
 {% endif %}

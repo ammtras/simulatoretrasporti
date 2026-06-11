@@ -1,0 +1,52 @@
+<h1>Lista Spedizioni</h1>
+
+<table border="1" style="width:100%; border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th>Data</th>
+            <th>Da</th>
+            <th>A</th>
+            <th>Zone</th>
+            <th>Peso Totale kg (Reale)</th>
+            <th>Colli</th>
+            <th>Colli misure peso reale</th>
+            <th>Trasportatore</th>
+            <th>Valore preventivo</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for s in spedizioni %}
+            <tr style="background:#f9f9f9;">
+                <td>{{ s.data }}</td>
+                <td>{{ s.da_cliente_citta }}</td>
+                <td>{{ s.a_cliente_citta }}</td>
+                <td>{{ s.da_zona }} → {{ s.a_zona }}</td>
+                <td>{{ s.peso_totale_kg }}</td>
+                <td>
+                    {% if s.pacchi.all.count %}
+                        {{ s.pacchi.count }}
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+                <td>
+                    {% if s.pacchi.all %}
+                    {% for pacco in s.pacchi.all %}
+                    ({{pacco}})<br>
+                    {% endfor %}
+                    {% endif %}
+                </td>
+                <td>{{ s.trasportatore_scelto }}</td>
+                <td>{{ s.valore_preventivo }}</td>
+            </tr>
+
+
+
+        {% empty %}
+            <tr>
+                <td colspan="8">Nessuna spedizione trovata</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
