@@ -49,10 +49,18 @@
         {% for p in preventivi %}
             <li style="{% if p.best %}background:#d4edda; font-weight:bold;{% endif %} padding:10px; margin-bottom:10px;">
 
-                <strong>{{ p.trasportatore }}</strong> - {{ p.prezzo }} €
+                <strong>{{ p.trasportatore }}</strong> - {{ p.prezzo }} € -
 
                 {% if p.best %}
                     ⭐ Miglior prezzo
+                {% endif %} -
+                {% if p.dettaglio %}
+                Dettaglio:
+                {{ p.trasportatore }}
+                {{ p.prezzo }}
+                Peso reale: {{ p.dettaglio.peso_reale }}
+                Peso volume: {{ p.dettaglio.peso_volume }}
+                Peso tassabile: {{ p.dettaglio.peso_tassabile }}
                 {% endif %}
 
                 <button type="submit"

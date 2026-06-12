@@ -47,16 +47,13 @@ def calcola_preventivi(spedizione, pacchi):
     # =========================
     # 🟢 GLS (DELEGATO AL SERVICE)
     # =========================
-    prezzo_gls = GLSService.calcola(
-        spedizione,
-        pacchi,
-        peso_reale_totale
-    )
+    result_gls = GLSService.calcola(spedizione, pacchi)
 
-    if prezzo_gls:
+    if result_gls:
         preventivi.append({
             "trasportatore": "GLS",
-            "prezzo": prezzo_gls
+            "prezzo": result_gls["prezzo"],
+            "dettaglio": result_gls["dettaglio"]
         })
 
     # =========================
@@ -155,11 +152,60 @@ def crea_spedizione(request):
 
 #in crea_spedizione chiedere conferma se si vuole creare una spezione con data antecedente ad oggi
 
-class Spedizioni(ListView):
+class Spedizionixx(ListView):
     model = Spedizione
     template_name = "spedizioni.html"
     context_object_name = "spedizioni"
     ordering = ["-data"]  # più recenti prima
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
 
+        for spedizione in context["spedizioni"]:
+            pacchi = [
+                {
+                    "altezza_cm": p.altezza_cm,
+                    "larghezza_cm": p.larghezza_cm,
+                    "profondita_cm": p.profondita_cm,
+                    "peso_kg": p.peso_kg,
+                }
+                for p in spedizione.pacco_set.all()
+            ]
+
+            spedizione.dettaglio = GLSService.dettaglio_calcolo_preventivo(
+                pacchi,
+                spedizione.zona_tariffazione_spedizioniere
+            )
+
+        return context
+
+from trasporti.services.GLS import GLSService
+
+class Spedizioni(ListView):
+    model = Spedizione
+    template_name = "spedizioni.html"
+    context_object_name = "spedizioni"
+    ordering = ["-data"]
+
+    def get_queryset(self):
+        spedizioni = super().get_queryset()
+
+        for spedizione in spedizioni:
+
+            pacchi = [
+                {
+                    "altezza_cm": p.altezza_cm,
+                    "larghezza_cm": p.larghezza_cm,
+                    "profondita_cm": p.profondita_cm,
+                    "peso_kg": p.peso_kg,
+                }
+                for p in spedizione.pacchi.all()
+            ]
+
+            spedizione.dettaglio = GLSService.dettaglio_calcolo_preventivo(
+                pacchi,
+                spedizione.zona_tariffazione_spedizioniere
+            )
+
+        return spedizioni
 

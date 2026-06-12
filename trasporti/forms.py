@@ -13,6 +13,7 @@ class SpedizioneForm(forms.ModelForm):
             "a_cliente_citta",
             "da_zona",
             "a_zona",
+            "zona_tariffazione_spedizioniere",
             "contrassegno_euro",
             "assicurazione_euro",
             "se_triangolazione",

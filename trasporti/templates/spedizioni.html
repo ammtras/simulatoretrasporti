@@ -40,7 +40,11 @@
                 </td>
                 <td>{{ s.trasportatore_scelto }}</td>
                 <td>{{ s.valore_preventivo }}</td>
-                <td>Dettaglio calcolo preventivo</td>
+                <td>
+                    Peso tassabile: {{ s.dettaglio.peso_tassabile }} <br>
+                    Peso reale: {{ s.dettaglio.peso_reale }} <br>
+                    Peso volume: {{ s.dettaglio.peso_volume }} <br>
+                </td>
             </tr>
 
 
