@@ -60,13 +60,14 @@ class Spedizione(models.Model):
     contrassegno_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     assicurazione_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     peso_totale_kg = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    trasportatore_scelto = models.CharField(max_length=100, null=True, blank=True)
+    trasportatore_scelto = models.ForeignKey(Spedizioniere,on_delete=models.CASCADE,null=True, blank=True)
     valore_preventivo = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     def __str__(self):
         return f" {self.data} da cliente città {self.da_cliente_citta} a {self.a_cliente_citta}"
 
     class Meta:
         verbose_name_plural = 'Spedizioni'
+
 class Pacco(models.Model):
     altezza_cm = models.DecimalField(max_digits=6, decimal_places=2)
     larghezza_cm = models.DecimalField(max_digits=6, decimal_places=2)
@@ -79,11 +80,6 @@ class Pacco(models.Model):
     class Meta:
         verbose_name_plural = 'Pacchi'
 
-
-
-
-
-
 class Scaglione(models.Model):
     spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE,null=True)
     zona = models.ForeignKey(Zona, on_delete=models.CASCADE,null=True)
@@ -95,7 +91,7 @@ class Scaglione(models.Model):
     valid_to = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.spedizioniere} | {self.zona_spedizioniere} | dal {self.valid_from} a {self.valid_to} | da {self.min_weight} a {self.max_weight} | € {self.price}  "
+        return f"{self.spedizioniere} | da {self.min_weight} a {self.max_weight} | {self.zona_spedizioniere} | dal {self.valid_from} a {self.valid_to} |  € {self.price}  "
 
     class Meta:
         verbose_name_plural = "Scaglioni"
@@ -104,6 +100,8 @@ class OverflowTariff(models.Model):
     zona_spedizioniere = models.ForeignKey(Zona_spedizioniere, on_delete=models.CASCADE)
     step_kg = models.DecimalField(max_digits=8,decimal_places=2)
     price_per_step = models.DecimalField(max_digits=8,decimal_places=2)
+    valid_from = models.DateField(default=timezone.now)
+    valid_to = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.zona_spedizioniere} | ogni {self.step_kg} Kg € {self.price_per_step}"
@@ -133,6 +131,7 @@ class Supplemento(models.Model):
     calc_type = models.CharField(max_length=28,choices=TYPES)
     applic_type = models.CharField(max_length=28,choices=APPLICAZIONE)
     valore = models.DecimalField(max_digits=10,decimal_places=2)
+    applica_fuel = models.BooleanField(default=True)
     valid_from = models.DateField(default=timezone.now)
     valid_to = models.DateField(null=True, blank=True)
 

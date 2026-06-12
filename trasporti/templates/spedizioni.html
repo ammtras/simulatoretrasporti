@@ -3,33 +3,34 @@
 <table border="1" style="width:100%; border-collapse: collapse;">
     <thead>
         <tr>
-            <th>Data</th>
-            <th>Da</th>
-            <th>A</th>
-            <th>Zone</th>
-            <th>Peso Totale kg (Reale)</th>
-            <th>Colli</th>
-            <th>Colli misure peso reale</th>
-            <th>Trasportatore</th>
-            <th>Valore preventivo</th>
+
+            <th>Dettaglio Spedizione</th>
+            <th>Dettaglio Colli misure e peso reale</th>
             <th>Dettaglio calcolo preventivo</th>
+
         </tr>
     </thead>
 
     <tbody>
         {% for s in spedizioni %}
             <tr style="background:#f9f9f9;">
-                <td>{{ s.data }}</td>
-                <td>{{ s.da_cliente_citta }}</td>
-                <td>{{ s.a_cliente_citta }}</td>
-                <td>{{ s.da_zona }} → {{ s.a_zona }}</td>
-                <td>{{ s.peso_totale_kg }}</td>
-                <td>
-                    {% if s.pacchi.all.count %}
+
+                <td> data: {{ s.data }} <br>
+                     da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br>
+                     da {{ s.da_zona }} a {{ s.a_zona }} <br>
+                     totale colli: {% if s.pacchi.all.count %}
                         {{ s.pacchi.count }}
                     {% else %}
                         0
-                    {% endif %}
+                    {% endif %} <br>
+                    contrassegno € {{s.contrassegno_euro}}<br>
+                    assicurazione € {{s.assicurazione_euro}}<br>
+                    {{s.trasportatore_scelto}}
+
+
+
+
+
                 </td>
                 <td>
                     {% if s.pacchi.all %}
@@ -38,13 +39,29 @@
                     {% endfor %}
                     {% endif %}
                 </td>
-                <td>{{ s.trasportatore_scelto }}</td>
-                <td>{{ s.valore_preventivo }}</td>
                 <td>
-                    Peso tassabile: {{ s.dettaglio.peso_tassabile }} <br>
-                    Peso reale: {{ s.dettaglio.peso_reale }} <br>
-                    Peso volume: {{ s.dettaglio.peso_volume }} <br>
+{% for riga in s.dettaglio.items %}
+        {% if item.is_total %}
+            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
+            <span style="font-size: 1.1em; color: #2c3e50;">
+                <strong>{{ riga.label }}: {{ riga.value }}</strong>
+            </span>
+        {% else %}
+            {{ riga.label }}:
+
+            {% if riga.is_html %}
+                <br>{{ riga.value|safe }}
+            {% else %}
+                {{ riga.value }}
+            {% endif %}
+
+            <br>
+        {% endif %}
+    {% endfor %}
                 </td>
+
+</td></td>
+
             </tr>
 
 

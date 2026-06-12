@@ -8,9 +8,6 @@ from django.views.generic import ListView
 from trasporti.services.GLS import GLSService
 from decimal import Decimal
 
-
-
-
 def loggin(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -25,12 +22,11 @@ def loggin(request):
     else:
         return render(request, 'login.html', {})
 
+
 @login_required
 def loggout(request):
     logout(request)
     return redirect('login')
-
-
 
 
 def calcola_preventivi(spedizione, pacchi):
@@ -115,6 +111,7 @@ def crea_spedizione(request):
 
 
             # 🟢 CONFERMA PREVENTIVO
+                # 🟢 CONFERMA PREVENTIVO
             elif action == "confirm":
                 spedizione = form.save(commit=False)
 
@@ -129,17 +126,29 @@ def crea_spedizione(request):
 
                 spedizione.peso_reale_totale_kg = peso_reale_totale
 
-                # 👉 dati selezionati dal bottone
-                spedizione.trasportatore_scelto = request.POST.get("trasportatore")
+                # 👇 MODIFICA QUI 👇
+                nome_trasportatore = request.POST.get("trasportatore")
+
+                try:
+                    # Sostituisci 'Spedizioniere' con il nome reale del tuo modello
+                    # e 'nome' con il campo che contiene il testo 'GLS'
+                    trasportatore_obj = Spedizioniere.objects.get(nome=nome_trasportatore)
+                    spedizione.trasportatore_scelto = trasportatore_obj
+                except Spedizioniere.DoesNotExist:
+                    # Gestione errore: se nel DB non esiste un trasportatore con quel nome
+                    # Puoi decidere se impostarlo a None, mostrare un messaggio di errore, ecc.
+                    spedizione.trasportatore_scelto = None
+                    # 👆 FINE MODIFICA 👆
+
                 prezzo = request.POST.get("prezzo", "0")
                 spedizione.valore_preventivo = Decimal(str(prezzo).replace(",", "."))
+
                 spedizione.save()
 
                 formset.instance = spedizione
                 formset.save()
 
                 return redirect("crea_spedizione")
-
     else:
         form = SpedizioneForm(instance=Spedizione(data=timezone.now().date()))
         formset = PaccoFormSet()
@@ -152,34 +161,6 @@ def crea_spedizione(request):
 
 #in crea_spedizione chiedere conferma se si vuole creare una spezione con data antecedente ad oggi
 
-class Spedizionixx(ListView):
-    model = Spedizione
-    template_name = "spedizioni.html"
-    context_object_name = "spedizioni"
-    ordering = ["-data"]  # più recenti prima
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        for spedizione in context["spedizioni"]:
-            pacchi = [
-                {
-                    "altezza_cm": p.altezza_cm,
-                    "larghezza_cm": p.larghezza_cm,
-                    "profondita_cm": p.profondita_cm,
-                    "peso_kg": p.peso_kg,
-                }
-                for p in spedizione.pacco_set.all()
-            ]
-
-            spedizione.dettaglio = GLSService.dettaglio_calcolo_preventivo(
-                pacchi,
-                spedizione.zona_tariffazione_spedizioniere
-            )
-
-        return context
-
-from trasporti.services.GLS import GLSService
 
 class Spedizioni(ListView):
     model = Spedizione
@@ -190,7 +171,7 @@ class Spedizioni(ListView):
     def get_queryset(self):
         spedizioni = super().get_queryset()
 
-        for spedizione in spedizioni:
+        for s in spedizioni:
 
             pacchi = [
                 {
@@ -199,13 +180,19 @@ class Spedizioni(ListView):
                     "profondita_cm": p.profondita_cm,
                     "peso_kg": p.peso_kg,
                 }
-                for p in spedizione.pacchi.all()
+                for p in s.pacchi.all()
             ]
 
-            spedizione.dettaglio = GLSService.dettaglio_calcolo_preventivo(
-                pacchi,
-                spedizione.zona_tariffazione_spedizioniere
-            )
+            # 🔥 USA STESSA LOGICA DEL CALCOLO PREVENTIVO
+            result = GLSService.calcola(s, pacchi)
+
+            if result:
+                s.dettaglio = result["dettaglio"]
+                s.valore_preventivo = result["prezzo"]
 
         return spedizioni
+
+
+
+
 
