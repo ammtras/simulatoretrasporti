@@ -1,4 +1,3 @@
-from decimal import Decimal
 from django.shortcuts import render, redirect
 from .forms import SpedizioneForm, PaccoFormSet
 from .models import *
@@ -6,6 +5,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.generic import ListView
+from trasporti.services.GLS import GLSService
+from decimal import Decimal
+
 
 
 
@@ -28,21 +30,59 @@ def loggout(request):
     logout(request)
     return redirect('login')
 
-def calcola_preventivi(peso_totale):
-    preventivi = [
-        {"trasportatore": "GLS", "prezzo": peso_totale * Decimal("1.2")},
-        {"trasportatore": "DHL", "prezzo": peso_totale * Decimal("1.5")},
-        {"trasportatore": "UPS", "prezzo": peso_totale * Decimal("1.8")},
+
+
+
+def calcola_preventivi(spedizione, pacchi):
+
+    preventivi = []
+
+    # 🔵 peso totale
+    peso_reale_totale = sum(
+        Decimal(p.get("peso_kg", 0))
+        for p in pacchi
+        if p and not p.get("DELETE", False)
+    )
+
+    # =========================
+    # 🟢 GLS (DELEGATO AL SERVICE)
+    # =========================
+    prezzo_gls = GLSService.calcola(
+        spedizione,
+        pacchi,
+        peso_reale_totale
+    )
+
+    if prezzo_gls:
+        preventivi.append({
+            "trasportatore": "GLS",
+            "prezzo": prezzo_gls
+        })
+
+    # =========================
+    # 🟡 MOCK CARRIER
+    # =========================
+    preventivi += [
+        {
+            "trasportatore": "DHL",
+            "prezzo": peso_reale_totale * Decimal("1.5")
+        },
+        {
+            "trasportatore": "UPS",
+            "prezzo": peso_reale_totale * Decimal("1.8")
+        }
     ]
 
-    # 👉 trova il prezzo più basso
+    # =========================
+    # ⭐ BEST PRICE
+    # =========================
     min_price = min(p["prezzo"] for p in preventivi)
 
-    # 👉 aggiunge flag
     for p in preventivi:
         p["best"] = (p["prezzo"] == min_price)
 
     return preventivi
+
 
 def crea_spedizione(request):
     preventivi = None
@@ -60,13 +100,22 @@ def crea_spedizione(request):
 
             # 🔵 SIMULA PREVENTIVI
             if action == "simulate":
-                peso_totale = sum(
+
+                spedizione_temp = form.save(commit=False)  # 👈 FIX
+
+                peso_reale_totale = sum(
                     Decimal(p["peso_kg"])
                     for p in pacchi_data
                     if p and not p.get("DELETE", False)
                 )
 
-                preventivi = calcola_preventivi(peso_totale)
+                pacchi = [
+                    p for p in formset.cleaned_data
+                    if p and not p.get("DELETE", False)
+                ]
+
+                preventivi = calcola_preventivi(spedizione_temp, pacchi)
+
 
             # 🟢 CONFERMA PREVENTIVO
             elif action == "confirm":
@@ -75,13 +124,13 @@ def crea_spedizione(request):
                 print("PACCHI DATA:")
                 print(pacchi_data)
 
-                peso_totale = sum(
+                peso_reale_totale = sum(
                     Decimal(p["peso_kg"])
                     for p in pacchi_data
                     if p and not p.get("DELETE", False)
                 )
 
-                spedizione.peso_totale_kg = peso_totale
+                spedizione.peso_reale_totale_kg = peso_reale_totale
 
                 # 👉 dati selezionati dal bottone
                 spedizione.trasportatore_scelto = request.POST.get("trasportatore")
@@ -103,6 +152,8 @@ def crea_spedizione(request):
         "formset": formset,
         "preventivi": preventivi
     })
+
+#in crea_spedizione chiedere conferma se si vuole creare una spezione con data antecedente ad oggi
 
 class Spedizioni(ListView):
     model = Spedizione
