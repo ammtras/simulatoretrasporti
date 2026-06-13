@@ -6,6 +6,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.generic import ListView
 from trasporti.services.GLS import GLSService
+from django.utils import timezone
+from decimal import Decimal
+
 
 def loggin(request):
     if request.method == 'POST':
@@ -98,157 +101,77 @@ def calcola_preventivi(spedizione, pacchi):
             p["best"] = (p["prezzo"] == min_price)
 
     return preventivi
-def crea_spedizioneXX(request):
-    preventivi = None
-
-    if request.method == "POST":
-        action = request.POST.get("action")
-
-        form = SpedizioneForm(request.POST)
-
-        formset = PaccoFormSet(request.POST)
-
-        if form.is_valid() and formset.is_valid():
-
-            pacchi_data = formset.cleaned_data
-
-            # 🔵 SIMULA PREVENTIVI
-            if action == "simulate":
-
-                spedizione_temp = form.save(commit=False)  # 👈 FIX
-
-                peso_reale_totale = sum(
-                    Decimal(p["peso_kg"])
-                    for p in pacchi_data
-                    if p and not p.get("DELETE", False)
-                )
-
-                pacchi = [
-                    p for p in formset.cleaned_data
-                    if p and not p.get("DELETE", False)
-                ]
-
-                preventivi = calcola_preventivi(spedizione_temp, pacchi)
 
 
-            # 🟢 CONFERMA PREVENTIVO
-            elif action == "confirm":
-                spedizione = form.save(commit=False)
 
-                peso_reale_totale = sum(
-                    Decimal(p["peso_kg"])
-                    for p in pacchi_data
-                    if p and not p.get("DELETE", False)
-                )
-                spedizione.peso_reale_totale_kg = peso_reale_totale
 
-                nome_trasportatore = request.POST.get("trasportatore")
+#in crea_spedizione chiedere conferma se si vuole creare una spezione con data antecedente ad oggi
 
-                try:
-                    trasportatore_obj = Spedizioniere.objects.get(nome=nome_trasportatore)
-                    spedizione.trasportatore_scelto = trasportatore_obj
 
-                    # 🟢 NUOVO FIX: Recuperiamo e salviamo la zona del trasportatore!
-                    # Cerchiamo la Zona_spedizioniere che incrocia il corriere scelto con la tratta del form
-                    from trasporti.models import Zona_spedizioniere  # Assicurati che l'import sia corretto
 
-                    zona_corriere_obj = Zona_spedizioniere.objects.filter(
-                        spedizioniere=trasportatore_obj,
-                        da_zona=spedizione.da_zona,  # Le località inserite nel form
-                        a_zona=spedizione.a_zona
-                    ).first()
-
-                    # Salviamo la relazione sul DB (così la lista /spedizioni la troverà compilata!)
-                    spedizione.zona_tariffazione_spedizioniere = zona_corriere_obj
-
-                except Spedizioniere.DoesNotExist:
-                    spedizione.trasportatore_scelto = None
-                    spedizione.zona_tariffazione_spedizioniere = None
-
-                prezzo = request.POST.get("prezzo", "0")
-                spedizione.valore_preventivo = Decimal(str(prezzo).replace(",", "."))
-
-                # Salva tutto nel Database
-                spedizione.save()
-                form.save_m2m()
-
-                formset.instance = spedizione
-                formset.save()
-
-                return redirect("spedizioni")
-
-    else:
-        form = SpedizioneForm(instance=Spedizione(data=timezone.now().date()))
-        formset = PaccoFormSet()
-
-    return render(request, "crea_spedizione.html", {
-        "form": form,
-        "formset": formset,
-        "preventivi": preventivi
-    })
 
 
 
 def crea_spedizione(request):
     preventivi = None
+    # Recuperiamo i supplementi filtrando quelli che non hanno codice ASSIC o CONTR
+    supplementi_disponibili = Supplemento.objects.exclude(tipo_servizio__codice__in=['ASSIC', 'CONTR', 'FUELS'])
+
+    # Inizializziamo la lista dei selezionati per evitare errori se non c'è il POST
+    ids_supplementi = []
 
     if request.method == "POST":
+        print("DEBUG: Entrato nel POST della View!")
         action = request.POST.get("action")
         form = SpedizioneForm(request.POST)
         formset = PaccoFormSet(request.POST)
 
+        # Recuperiamo gli ID dei supplementi dal form
+        ids_supplementi = request.POST.getlist("supplementi_selezionati")
+
+        # --- INCOLLA QUI IL BLOCCO DI DEBUG ---
+        if form.is_valid() and formset.is_valid():
+            print("DEBUG: Form valido!")
+        else:
+            print(f"DEBUG: Form NON valido! Errori form: {form.errors}")
+            print(f"DEBUG: Errori formset: {formset.errors}")
+        # --------------------------------------
+
         if form.is_valid() and formset.is_valid():
             pacchi_data = formset.cleaned_data
+            pacchi = [p for p in pacchi_data if p and not p.get("DELETE", False)]
 
             # 🔵 SIMULA PREVENTIVI
             if action == "simulate":
                 spedizione_temp = form.save(commit=False)
 
-                # Iniettiamo i servizi in memoria per il motore dei supplementi
+                # Inietto servizi e supplementi per il motore di calcolo
                 servizi_scelti = form.cleaned_data.get("servizi_richiesti", [])
                 spedizione_temp._servizi_simulati = list(servizi_scelti)
+                # Passiamo gli ID dei supplementi al motore di calcolo
+                spedizione_temp._supplementi_simulati = ids_supplementi
 
-                peso_reale_totale = sum(
-                    Decimal(p["peso_kg"])
-                    for p in pacchi_data
-                    if p and not p.get("DELETE", False)
-                )
-
-                pacchi = [
-                    p for p in formset.cleaned_data
-                    if p and not p.get("DELETE", False)
-                ]
                 preventivi = calcola_preventivi(spedizione_temp, pacchi)
 
             # 🟢 CONFERMA PREVENTIVO
             elif action == "confirm":
                 spedizione = form.save(commit=False)
 
-                peso_reale_totale = sum(
-                    Decimal(p["peso_kg"])
-                    for p in pacchi_data
-                    if p and not p.get("DELETE", False)
-                )
+                # Calcolo peso
+                peso_reale_totale = sum(Decimal(p["peso_kg"]) for p in pacchi)
                 spedizione.peso_reale_totale_kg = peso_reale_totale
 
                 nome_trasportatore = request.POST.get("trasportatore")
-
                 try:
                     trasportatore_obj = Spedizioniere.objects.get(nome=nome_trasportatore)
                     spedizione.trasportatore_scelto = trasportatore_obj
 
-                    # 🟢 FIX CHIRURGICO: Cerchiamo la zona usando il campo reale del modello ('zona')
-                    # Agganciamo la zona del corriere basandoci sulla destinazione della spedizione (a_zona)
-                    from trasporti.models import Zona_spedizioniere
-
+                    # Logica zona
                     zona_corriere_obj = Zona_spedizioniere.objects.filter(
                         spedizioniere=trasportatore_obj,
-                        zona=spedizione.a_zona  # 👈 'zona' è il campo nel DB, 'spedizione.a_zona' è il dato del form
+                        zona=spedizione.a_zona
                     ).first()
-
-                    # Salviamo la relazione corretta sul DB
                     spedizione.zona_tariffazione_spedizioniere = zona_corriere_obj
-
                 except Spedizioniere.DoesNotExist:
                     spedizione.trasportatore_scelto = None
                     spedizione.zona_tariffazione_spedizioniere = None
@@ -256,10 +179,14 @@ def crea_spedizione(request):
                 prezzo = request.POST.get("prezzo", "0")
                 spedizione.valore_preventivo = Decimal(str(prezzo).replace(",", "."))
 
-                # Salva definitivamente la spedizione e le relazioni Many-to-Many
+                # Salvataggio
                 spedizione.save()
-                form.save_m2m()
 
+                # 🚀 SALVATAGGIO RELAZIONE MANY-TO-MANY
+                if ids_supplementi:
+                    spedizione.supplementi.set(ids_supplementi)
+
+                form.save_m2m()
                 formset.instance = spedizione
                 formset.save()
 
@@ -272,10 +199,11 @@ def crea_spedizione(request):
     return render(request, "crea_spedizione.html", {
         "form": form,
         "formset": formset,
-        "preventivi": preventivi
+        "preventivi": preventivi,
+        "supplementi_disponibili": supplementi_disponibili,
+        "ids_selezionati": ids_supplementi  # <--- AGGIUNTA FONDAMENTALE
     })
 
-#in crea_spedizione chiedere conferma se si vuole creare una spezione con data antecedente ad oggi
 
 
 

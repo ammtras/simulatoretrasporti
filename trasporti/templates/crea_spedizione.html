@@ -6,6 +6,17 @@
     <h2>Spedizione</h2>
     {{ form.as_p }}
 
+    {% for supp in supplementi_disponibili %}
+    <label>
+        <input type="checkbox" name="supplementi_selezionati" value="{{ supp.id }}"
+               {% if supp.id|stringformat:"s" in ids_selezionati %}checked{% endif %}>
+        {{ supp.nome }}
+    </label>
+{% endfor %}
+
+
+
+
     <h2>Pacchi</h2>
 
     {{ formset.management_form }}
@@ -33,6 +44,7 @@
         {% endfor %}
         </tbody>
     </table>
+
 
     <button type="submit" name="action" value="simulate">
         Simula preventivi

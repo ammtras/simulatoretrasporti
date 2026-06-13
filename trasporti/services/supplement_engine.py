@@ -6,32 +6,34 @@ from trasporti.services.base import TariffValidityService
 class SupplementEngine:
 
     @staticmethod
-    def calcola(spedizione, pacchi, base_importo, zona_corrente):
+    def calcola(spedizione, pacchi, base_importo, zona_corrente, ids_supplementi=None):
         """
-        Calcola i supplementi basandosi sulla zona corrente.
-        🟢 LOGICA AGGIORNATA: Inclusione del diritto_minimo_euro per supplementi percentuali.
+        Calcola i supplementi.
+        Se ids_supplementi è fornito, calcola solo quelli selezionati (modalità simulazione).
+        Altrimenti, usa la logica standard basata sulla zona.
         """
 
+        # 🟢 LOGICA DI FILTRO: Se abbiamo IDs dalla simulazione, usiamo quelli.
+        if ids_supplementi:
+            queryset = Supplemento.objects.filter(id__in=ids_supplementi)
+        else:
+            queryset = Supplemento.objects.filter(zone_tariffazione=zona_corrente)
+
         supplementi = TariffValidityService.filtra_validita(
-            Supplemento.objects.filter(
-                zone_tariffazione=zona_corrente
-            ).select_related('tipo_servizio').distinct(),
+            queryset.select_related('tipo_servizio').distinct(),
             spedizione.data
         )
 
         totale = Decimal("0")
         dettaglio = []
 
+        # Recupero codici servizi (usando l'attributo iniettato se presente, altrimenti il DB)
         servizi_selezionati_codici = []
-        if spedizione.pk:
-            servizi_selezionati_codici = list(spedizione.servizi_richiesti.values_list('codice', flat=True))
-        else:
-            try:
-                servizi_selezionati_codici = [s.codice for s in spedizione.servizi_richiesti.all()]
-            except (ValueError, AttributeError):
-                servizi_selezionati_codici = []
-
-        servizi_selezionati_codici = [str(c).upper() for c in servizi_selezionati_codici if c]
+        if hasattr(spedizione, '_servizi_simulati'):
+            servizi_selezionati_codici = [str(c).upper() for c in spedizione._servizi_simulati if c]
+        elif spedizione.pk:
+            servizi_selezionati_codici = [str(c).upper() for c in
+                                          spedizione.servizi_richiesti.values_list('codice', flat=True) if c]
 
         for sup in supplementi:
             costo = Decimal("0")
@@ -42,12 +44,12 @@ class SupplementEngine:
                 continue
 
             # =================================================================
-            # 🟢 LOGICA DI CALCOLO (PERCENTAGE o FIXED)
+            # 🟢 LOGICA DI CALCOLO
             # =================================================================
             if codice_servizio in ["ASSIC", "CONTR"]:
-                valore_base = Decimal(
-                    str(getattr(spedizione, 'assicurazione_euro' if codice_servizio == "ASSIC" else 'contrassegno_euro',
-                                0) or 0))
+                # Recuperiamo il valore base (simulato o da DB)
+                attr_name = 'assicurazione_euro' if codice_servizio == "ASSIC" else 'contrassegno_euro'
+                valore_base = Decimal(str(getattr(spedizione, attr_name, 0) or 0))
 
                 if valore_base > Decimal("0"):
                     if sup.calc_type == Supplemento.PERCENTAGE:
@@ -59,7 +61,8 @@ class SupplementEngine:
                     continue
 
             else:
-                if codice_servizio not in servizi_selezionati_codici:
+                # Se non è ASSIC/CONTR, deve essere tra i servizi selezionati
+                if codice_servizio not in servizi_selezionati_codici and not ids_supplementi:
                     continue
 
                 fattore = Decimal(len(pacchi)) if sup.applic_type == Supplemento.ACOLLO else Decimal("1")
@@ -70,9 +73,6 @@ class SupplementEngine:
                     costo = base_importo * sup.valore / Decimal("100")
                     if minimo > 0: costo = max(costo, minimo)
 
-            # =================================================================
-            # ACCUMULO RISULTATI
-            # =================================================================
             if costo > Decimal("0"):
                 totale += costo
                 dettaglio.append({

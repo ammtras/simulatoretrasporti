@@ -117,18 +117,15 @@ class GLSService:
     # =========================
     # 🟢 SCAGLIONI
     # =========================
-
-
-
     @staticmethod
     def _scaglioni(context):
-
         spedizione = context["spedizione"]
         pacchi = context["pacchi"]
         zona_gls = context["zona"]
         peso_tassabile = context["peso_tassabile"]
         dettaglio = context["dettaglio"]
 
+        # 1. Calcolo tariffa base
         scaglioni = TariffValidityService.filtra_validita(
             Scaglione.objects.filter(zona_spedizioniere=zona_gls),
             spedizione.data
@@ -142,45 +139,38 @@ class GLSService:
 
         if not scaglione:
             scaglione = scaglioni.last()
-
         if not scaglione:
-            return {
-                "prezzo": Decimal("0"),
-                "dettaglio": {"error": "no scaglione"}
-            }
+            return {"prezzo": Decimal("0"), "dettaglio": {"error": "no scaglione"}}
 
         prezzo = scaglione.price
         soglia = scaglione.max_weight or scaglione.min_weight
 
         extra_kg = Decimal("0")
-        steps = 0
         costo_overflow = Decimal("0")
 
         if peso_tassabile > soglia:
-
             extra_kg = peso_tassabile - soglia
-
             overflow = TariffValidityService.filtra_validita(
                 OverflowTariff.objects.filter(zona_spedizioniere=zona_gls),
                 spedizione.data
             ).first()
-
             if overflow:
-                steps = ceil(extra_kg / overflow.step_kg)
-                costo_overflow = steps * overflow.price_per_step
+                costo_overflow = ceil(extra_kg / overflow.step_kg) * overflow.price_per_step
 
         pre_base = prezzo + costo_overflow
 
+        # 2. CHIAMATA AL SUPPLEMENT ENGINE (con gestione simulazione)
+        ids_supplementi = getattr(spedizione, '_supplementi_simulati', [])
 
-        # 1. Il SupplementEngine calcola i supplementi dal DB
         supp = SupplementEngine.calcola(
             spedizione,
             pacchi,
             pre_base,
-            zona_gls
+            zona_gls,
+            ids_supplementi=ids_supplementi
         )
 
-        # PULIZIA CHIRURGICA DEI SUPPLEMENTI
+        # 3. Logica Fuel e Totali
         supplementi_puliti = []
         totale_supplementi_con_fuel = Decimal("0")
         totale_supplementi_senza_fuel = Decimal("0")
@@ -188,55 +178,36 @@ class GLSService:
         for s in supp.get("dettaglio", []):
             nome_supp = s.get('nome', '').lower()
             costo_supp = Decimal(str(s.get("costo", 0)))
-
             if "fuel" in nome_supp:
-                continue  # Saltiamo il fuel storico del DB
-
+                continue
             supplementi_puliti.append(s)
-
             if s.get("applica_fuel") is True or s.get("applica fuel") is True:
                 totale_supplementi_con_fuel += costo_supp
             else:
                 totale_supplementi_senza_fuel += costo_supp
 
-        # 2. CHIAMATA AL FUEL ENGINE UFFICIALE
-        fuel = FuelEngine.calcola(
-            spedizione,
-            pre_base,
-            supplementi_puliti,
-            zona_gls
-        )
-
+        fuel = FuelEngine.calcola(spedizione, pre_base, supplementi_puliti, zona_gls)
         costo_fuel_calcolato = fuel["totale"]
-
-        # 3. CALCOLO PREZZO FINALE
         prezzo_finale = pre_base + totale_supplementi_con_fuel + costo_fuel_calcolato + totale_supplementi_senza_fuel
 
-        # 🟢 COSTRUZIONE DEL TESTO DELLO SCAGLIONE CON L'IDENTIFICATIVO STR() DEL MODEL
+        # 4. Preparazione output
         nome_scaglione_completo = str(scaglione)
         scaglione_testo = f"{nome_scaglione_completo} – <b>€ {pre_base:.2f}</b>"
 
-        # =====================================================================
-        # LOGICA DI DISTRIBUZIONE E NUMERAZIONE DEI SUPPLEMENTI
-        # =====================================================================
         lista_supp_con_fuel = []
         lista_supp_senza_fuel = []
-
         contatore_con_fuel = 1
         contatore_senza_fuel = 1
 
-        # 1️⃣ INSERIAMO IL FUEL SURCHARGE COME VOCE N.1 DEI "SENZA FUEL"
         for f in fuel.get("dettaglio", []):
             costo = Decimal(str(f.get("costo", 0)))
             if costo >= Decimal("0.01"):
                 stringa_fuel = f"{f.get('nome')}"
                 if f.get('percentuale'):
                     stringa_fuel += f" ({f.get('percentuale')}%)"
-
                 lista_supp_senza_fuel.append(f"{contatore_senza_fuel}. {stringa_fuel}: <b>€ {costo:.2f}</b>")
                 contatore_senza_fuel += 1
 
-        # 2️⃣ CICLO SUI SUPPLEMENTI REALI (ZTL, Assicurazione, Contrassegno...)
         for s in supplementi_puliti:
             costo = Decimal(str(s.get("costo", 0)))
             if costo >= Decimal("0.01"):
@@ -250,7 +221,6 @@ class GLSService:
         stringa_supp_con_fuel = "<br>".join(lista_supp_con_fuel) if lista_supp_con_fuel else "Nessuno"
         stringa_supp_senza_fuel = "<br>".join(lista_supp_senza_fuel) if lista_supp_senza_fuel else "Nessuno"
 
-        # === 4. COSTRUZIONE STRUTTURA PER IL TEMPLATE ===
         items_ordinati = [
             {"label": "Peso tassabile", "value": f"{peso_tassabile:.2f} kg"},
             {"label": "Peso reale", "value": f"{dettaglio['peso_reale']:.2f} kg"},
@@ -263,9 +233,7 @@ class GLSService:
 
         return {
             "prezzo": prezzo_finale,
-            "dettaglio": {
-                "items": items_ordinati
-            }
+            "dettaglio": {"items": items_ordinati}
         }
 
     @staticmethod
@@ -285,45 +253,6 @@ class GLSService:
             "prezzo": prezzo,
             "dettaglio": {
                 "items": items_ordinati  # Ora è identico allo scaglione!
-            }
-        }
-
-    # =========================
-    # 🟢 A COLLO
-    # =========================
-    @staticmethod
-    def _a_colloXX(pacchi, zona_gls):
-
-        divisore = zona_gls.divisore_volumetrico
-
-        peso_reale = sum(
-            Decimal(p["peso_kg"])
-            for p in pacchi
-            if p and p.get("peso_kg") is not None
-        )
-
-        peso_volume = sum(
-            (
-                    Decimal(p.get("altezza_cm") or 0) *
-                    Decimal(p.get("larghezza_cm") or 0) *
-                    Decimal(p.get("profondita_cm") or 0)
-            ) / Decimal(divisore)
-            for p in pacchi
-        )
-
-        peso_tassabile = max(peso_reale, peso_volume)
-
-        prezzo = peso_tassabile * Decimal("1.2")
-
-        return {
-            "prezzo": prezzo,
-            "dettaglio": {
-                "peso_reale": peso_reale,
-                "peso_volume": peso_volume,
-                "peso_tassabile": peso_tassabile,
-                "formula": f"max({peso_reale}, {peso_volume}) = {peso_tassabile}",
-                "scaglione": None,
-                "overflow" : None
             }
         }
 

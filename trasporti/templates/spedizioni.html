@@ -7,6 +7,8 @@
             <th>Dettaglio Spedizione</th>
             <th>Dettaglio Colli misure e peso reale</th>
             <th>Dettaglio calcolo preventivo</th>
+            <th>Preventivo (totale imponibile)</th>
+
 
         </tr>
     </thead>
@@ -40,22 +42,19 @@
                     {% endif %}
                 </td>
 
-                  <td>
+              <td>
     {% if s.dettaglio.items %}
         {% for riga in s.dettaglio.items %}
-            {% if riga.is_total %}
-                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
-                <span style="font-size: 1.1em; color: #2c3e50;">
-                    <strong>{{ riga.label }}: {{ riga.value|safe }}</strong>
-                </span>
-            {% else %}
-                <strong>{{ riga.label }}:</strong>
-                {% if riga.is_html %}
-                    {{ riga.value|safe }}
+            {% if not forloop.last %} {% if riga.is_total %}
+                    <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
+                    <span style="font-size: 1.1em; color: #2c3e50;">
+                        <strong>{{ riga.label }}: {{ riga.value|safe }}</strong>
+                    </span>
                 {% else %}
-                    {{ riga.value }}
+                    <strong>{{ riga.label }}:</strong>
+                    {% if riga.is_html %}{{ riga.value|safe }}{% else %}{{ riga.value }}{% endif %}
+                    <br>
                 {% endif %}
-                <br>
             {% endif %}
         {% endfor %}
     {% else %}
@@ -63,6 +62,13 @@
     {% endif %}
 </td>
 
+<td>
+    {% if s.dettaglio.items %}
+        {% with ultimo=s.dettaglio.items|last %}
+                {{ ultimo.value|safe }}
+        {% endwith %}
+    {% endif %}
+</td>
 
 </td></td>
 
