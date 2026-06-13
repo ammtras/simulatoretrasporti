@@ -48,7 +48,6 @@ class SupplementEngine:
                 valore_base = Decimal(
                     str(getattr(spedizione, 'assicurazione_euro' if codice_servizio == "ASSIC" else 'contrassegno_euro',
                                 0) or 0))
-                print(f"DEBUG ASSIC: ID={sup.id} | Nome={sup.nome} | Valore={sup.valore} | Minimo={getattr(sup, 'diritto_minimo_euro', 'N/D')}")
 
                 if valore_base > Decimal("0"):
                     if sup.calc_type == Supplemento.PERCENTAGE:
