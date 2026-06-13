@@ -39,26 +39,30 @@
                     {% endfor %}
                     {% endif %}
                 </td>
-                <td>
-{% for riga in s.dettaglio.items %}
-        {% if item.is_total %}
-            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
-            <span style="font-size: 1.1em; color: #2c3e50;">
-                <strong>{{ riga.label }}: {{ riga.value }}</strong>
-            </span>
-        {% else %}
-            {{ riga.label }}:
 
-            {% if riga.is_html %}
-                <br>{{ riga.value|safe }}
+                  <td>
+    {% if s.dettaglio.items %}
+        {% for riga in s.dettaglio.items %}
+            {% if riga.is_total %}
+                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
+                <span style="font-size: 1.1em; color: #2c3e50;">
+                    <strong>{{ riga.label }}: {{ riga.value|safe }}</strong>
+                </span>
             {% else %}
-                {{ riga.value }}
+                <strong>{{ riga.label }}:</strong>
+                {% if riga.is_html %}
+                    {{ riga.value|safe }}
+                {% else %}
+                    {{ riga.value }}
+                {% endif %}
+                <br>
             {% endif %}
+        {% endfor %}
+    {% else %}
+        <span style="color: #999; font-style: italic;">Dettaglio non disponibile</span>
+    {% endif %}
+</td>
 
-            <br>
-        {% endif %}
-    {% endfor %}
-                </td>
 
 </td></td>
 

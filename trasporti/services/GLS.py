@@ -203,7 +203,8 @@ class GLSService:
         fuel = FuelEngine.calcola(
             spedizione,
             pre_base,
-            supplementi_puliti
+            supplementi_puliti,
+            zona_gls
         )
 
         costo_fuel_calcolato = fuel["totale"]
@@ -267,13 +268,31 @@ class GLSService:
             }
         }
 
+    @staticmethod
+    def _a_collo(pacchi, zona_gls):
+        # ... (tutto il calcolo del peso rimane uguale) ...
+        peso_reale = ...
+        peso_tassabile = max(peso_reale, peso_volume)
+        prezzo = peso_tassabile * Decimal("1.2")
 
+        # 🟢 NUOVO: Costruiamo gli items come nello scaglione
+        items_ordinati = [
+            {"label": "Peso tassabile", "value": f"{peso_tassabile:.2f} kg"},
+            {"label": "Prezzo base a collo", "value": f"<b>€ {prezzo:.2f}</b>", "is_total": True, "is_html": True}
+        ]
+
+        return {
+            "prezzo": prezzo,
+            "dettaglio": {
+                "items": items_ordinati  # Ora è identico allo scaglione!
+            }
+        }
 
     # =========================
     # 🟢 A COLLO
     # =========================
     @staticmethod
-    def _a_collo(pacchi, zona_gls):
+    def _a_colloXX(pacchi, zona_gls):
 
         divisore = zona_gls.divisore_volumetrico
 

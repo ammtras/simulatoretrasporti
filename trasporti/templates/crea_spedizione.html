@@ -49,25 +49,33 @@
         {% for p in preventivi %}
             <li style="{% if p.best %}background:#d4edda; font-weight:bold;{% endif %} padding:10px; margin-bottom:10px;">
 
-                <strong>{{ p.trasportatore }}</strong> - {{ p.prezzo }} € -
+                <strong>{{ p.trasportatore }}  {{ p.prezzo|floatformat:2 }} € </strong>
 
                 {% if p.best %}
                     ⭐ Miglior prezzo
                 {% endif %} -
                 {% if p.dettaglio %}
-                Dettaglio:
-                {{ p.trasportatore }}
-                {{ p.prezzo }}
-                Peso reale: {{ p.dettaglio.peso_reale }}
-                Peso volume: {{ p.dettaglio.peso_volume }}
-                Peso tassabile: {{ p.dettaglio.peso_tassabile }}
-                {% endif %}
+    Dettaglio:
+    <div style="margin-top:5px; font-size: 0.9em; border-left: 2px solid #ddd; padding-left: 10px;">
+
+        {% if p.dettaglio.items %}
+            {% for riga in p.dettaglio.items %}
+                <strong>{{ riga.label }}:</strong> {{ riga.value|safe }}<br>
+            {% endfor %}
+        {% else %}
+            <strong>Peso reale:</strong> {{ p.dettaglio.peso_reale|floatformat:2 }} kg<br>
+            <strong>Peso volume:</strong> {{ p.dettaglio.peso_volume|floatformat:2 }} kg<br>
+            <strong>Peso tassabile:</strong> {{ p.dettaglio.peso_tassabile|floatformat:2 }} kg<br>
+        {% endif %}
+
+    </div>
+{% endif %}
 
                 <button type="submit"
                         name="action"
                         value="confirm"
                         formaction=""
-                        onclick="this.form.trasportatore.value='{{ p.trasportatore }}'; this.form.prezzo.value='{{ p.prezzo }}'">
+                        onclick="this.form.trasportatore.value='{{ p.trasportatore }}'; this.form.prezzo.value='{{ p.prezzo|floatformat:2 }}'">
                     Conferma preventivo e salva spedizione
                 </button>
 

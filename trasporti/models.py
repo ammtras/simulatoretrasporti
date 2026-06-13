@@ -76,7 +76,6 @@ class MappaturaZonaTariffaria(models.Model):
     def __str__(self):
         return f"{self.stato_partenza} ➡️ {self.stato_destinazione} = {self.zona_corrispondente.nome}"
 class Spedizione(models.Model):
-    #data = models.DateField(default=timezone.now)
     data = models.DateField(default=timezone.now)
     da_cliente_citta = models.CharField(max_length=200)
     a_cliente_citta = models.CharField(max_length=200)
@@ -173,7 +172,7 @@ class Supplemento(models.Model):
         blank=True,
         help_text="Seleziona le zone in cui questo supplemento è applicabile. Se vuoto, non verrà applicato."
     )
-
+    diritto_minimo_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Minimo applicabile (es. 5.00 euro)")
     nome = models.CharField(max_length=200)
     calc_type = models.CharField(max_length=28,choices=TYPES)
     applic_type = models.CharField(max_length=28,choices=APPLICAZIONE)

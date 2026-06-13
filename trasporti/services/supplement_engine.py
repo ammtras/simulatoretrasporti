@@ -6,80 +6,76 @@ from trasporti.services.base import TariffValidityService
 class SupplementEngine:
 
     @staticmethod
-    def calcola(spedizione, pacchi, base_importo, zona_corrente):  # 👈 Riceve la zona calcolata
+    def calcola(spedizione, pacchi, base_importo, zona_corrente):
+        """
+        Calcola i supplementi basandosi sulla zona corrente.
+        🟢 LOGICA AGGIORNATA: Inclusione del diritto_minimo_euro per supplementi percentuali.
+        """
 
-        # 🟢 QUERY MANY-TO-MANY: Filtra i supplementi validi per la data
-        # E che sono associati alla zona specifica della spedizione
         supplementi = TariffValidityService.filtra_validita(
             Supplemento.objects.filter(
-                zone_tariffazione=zona_corrente  # 👈 Django controlla la tabella Many-to-Many in automatico!
-            ).select_related('tipo_servizio').distinct(),  # .distinct() evita duplicati se ci sono incroci strani
+                zone_tariffazione=zona_corrente
+            ).select_related('tipo_servizio').distinct(),
             spedizione.data
         )
 
         totale = Decimal("0")
         dettaglio = []
 
-        for sup in supplementi:
-            fattore = Decimal("1")
-            costo = Decimal("0")
+        servizi_selezionati_codici = []
+        if spedizione.pk:
+            servizi_selezionati_codici = list(spedizione.servizi_richiesti.values_list('codice', flat=True))
+        else:
+            try:
+                servizi_selezionati_codici = [s.codice for s in spedizione.servizi_richiesti.all()]
+            except (ValueError, AttributeError):
+                servizi_selezionati_codici = []
 
+        servizi_selezionati_codici = [str(c).upper() for c in servizi_selezionati_codici if c]
+
+        for sup in supplementi:
+            costo = Decimal("0")
+            minimo = getattr(sup, 'diritto_minimo_euro', Decimal("0"))
             codice_servizio = sup.tipo_servizio.codice.upper() if sup.tipo_servizio else None
 
-            # 🛑 SICUREZZA: Se il supplemento non è mappato a un TipoServizio, lo ignoriamo subito
             if not codice_servizio:
                 continue
 
             # =================================================================
-            # 🟢 1. CONTROLLO MAPPATO: ASSICURAZIONE ('ASSIC')
+            # 🟢 LOGICA DI CALCOLO (PERCENTAGE o FIXED)
             # =================================================================
-            if codice_servizio == "ASSIC":
-                valore_assicurato = Decimal(str(spedizione.assicurazione_euro or 0))
-                if valore_assicurato > Decimal("0"):
+            if codice_servizio in ["ASSIC", "CONTR"]:
+                valore_base = Decimal(
+                    str(getattr(spedizione, 'assicurazione_euro' if codice_servizio == "ASSIC" else 'contrassegno_euro',
+                                0) or 0))
+                print(f"DEBUG ASSIC: ID={sup.id} | Nome={sup.nome} | Valore={sup.valore} | Minimo={getattr(sup, 'diritto_minimo_euro', 'N/D')}")
+
+                if valore_base > Decimal("0"):
                     if sup.calc_type == Supplemento.PERCENTAGE:
-                        costo = valore_assicurato * sup.valore / Decimal("100")
+                        costo = valore_base * sup.valore / Decimal("100")
+                        if minimo > 0: costo = max(costo, minimo)
                     elif sup.calc_type == Supplemento.FIXED:
                         costo = sup.valore
                 else:
                     continue
 
-            # =================================================================
-            # 🟢 2. CONTROLLO MAPPATO: CONTRASSEGNO ('CONTR')
-            # =================================================================
-            elif codice_servizio == "CONTR":
-                valore_contrassegno = Decimal(str(spedizione.contrassegno_euro or 0))
-                if valore_contrassegno > Decimal("0"):
-                    if sup.calc_type == Supplemento.PERCENTAGE:
-                        costo = valore_contrassegno * sup.valore / Decimal("100")
-                    elif sup.calc_type == Supplemento.FIXED:
-                        costo = sup.valore
-                else:
-                    continue
-
-            # =================================================================
-            # 🟡 3. TUTTI GLI ALTRI SUPPLEMENTI STANDARD (Es. ZTL, Isole...)
-            # =================================================================
             else:
-                # 🛑 CONTROLLO RESTRITTIVO: Passa SOLO se la spedizione ha richiesto questo codice
-                ha_servizio = spedizione.servizi_richiesti.filter(codice__iexact=codice_servizio).exists()
-                if not ha_servizio:
-                    continue  # Se non è richiesto esplicitamente, viene scartato!
+                if codice_servizio not in servizi_selezionati_codici:
+                    continue
 
-                # Calcolo matematico standard
-                if sup.applic_type == Supplemento.ACOLLO:
-                    fattore = Decimal(len(pacchi))
+                fattore = Decimal(len(pacchi)) if sup.applic_type == Supplemento.ACOLLO else Decimal("1")
 
                 if sup.calc_type == Supplemento.FIXED:
                     costo = sup.valore * fattore
                 elif sup.calc_type == Supplemento.PERCENTAGE:
                     costo = base_importo * sup.valore / Decimal("100")
+                    if minimo > 0: costo = max(costo, minimo)
 
             # =================================================================
-            # Accumulo dei costi validi
+            # ACCUMULO RISULTATI
             # =================================================================
             if costo > Decimal("0"):
                 totale += costo
-
                 dettaglio.append({
                     "nome": sup.nome,
                     "valore": sup.valore,
@@ -89,7 +85,6 @@ class SupplementEngine:
                     "costo": costo,
                 })
 
-        # 🛑 RIGUARDA QUI: Il return ora è fuori dal ciclo 'for', allineato correttamente!
         return {
             "totale": totale,
             "dettaglio": dettaglio
