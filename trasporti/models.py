@@ -48,6 +48,14 @@ class Zona_spedizioniere(models.Model):
         verbose_name_plural = "Zone Tariffazione Spedizionieri"
         unique_together = ("spedizioniere", "zona")
 
+class TipoServizio(models.Model):
+    # Un codice univoco che userai nel codice Python
+    codice = models.CharField(max_length=50, unique=True) # es: 'ASSICURAZIONE', 'CONTRASSEGNO', 'ZTL'
+    nome = models.CharField(max_length=100) # es: "Assicurazione Merce", "Contrassegno"
+
+    def __str__(self):
+        return self.nome
+
 class Spedizione(models.Model):
     #data = models.DateField(default=timezone.now)
     data = models.DateField(default=timezone.now)
@@ -56,7 +64,7 @@ class Spedizione(models.Model):
     da_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="dazona")
     a_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="a_zona")
     zona_tariffazione_spedizioniere = models.ForeignKey(Zona_spedizioniere,on_delete=models.CASCADE,related_name="zona_tariffazione_spedizioniere")
-    se_triangolazione =models.BooleanField(default=False)
+    servizi_richiesti = models.ManyToManyField(TipoServizio, blank=True)
     contrassegno_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     assicurazione_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     peso_totale_kg = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -109,7 +117,16 @@ class OverflowTariff(models.Model):
     class Meta:
         verbose_name_plural = "Tariffe extra soglia (non in scaglioni)"
 
+
 class Supplemento(models.Model):
+
+    tipo_servizio = models.ForeignKey(
+        TipoServizio,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='supplementi_corrieri'
+    )
 
     FIXED = "fisso"
     PERCENTAGE = "percentuale"
@@ -125,6 +142,7 @@ class Supplemento(models.Model):
         (ACOLLO, "a collo"),
         (ASPEDIZIONE, "a spedizione"),
     ]
+
 
     spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE)
     nome = models.CharField(max_length=200)

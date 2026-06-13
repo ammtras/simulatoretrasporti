@@ -17,4 +17,6 @@ admin.site.register(Zona_spedizioniere)
 admin.site.register(Scaglione)
 admin.site.register(Supplemento)
 admin.site.register(OverflowTariff)
+admin.site.register(TipoServizio)
+
 

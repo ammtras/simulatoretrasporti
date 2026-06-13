@@ -16,7 +16,6 @@ class SpedizioneForm(forms.ModelForm):
             "zona_tariffazione_spedizioniere",
             "contrassegno_euro",
             "assicurazione_euro",
-            "se_triangolazione",
         ]
 
         widgets = {
