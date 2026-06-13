@@ -74,7 +74,6 @@ class GLSService:
             "formula": f"max({peso_reale}, {peso_volume}) = {peso_tassabile}"
         }
 
-
     @staticmethod
     def calcola(spedizione, pacchi):
 
@@ -100,12 +99,21 @@ class GLSService:
 
         peso_tassabile = dettaglio["peso_tassabile"]
 
+        # 🟢 LOGICA: Recupero ID supplementi (DB se esiste, Simulazione se nuova)
+        if spedizione.pk:
+            # Se la spedizione è già salvata, prendiamo i supplementi dal DB
+            ids_supplementi = list(spedizione.supplementi.values_list('id', flat=True))
+        else:
+            # Se è in fase di simulazione (non ha ancora PK), prendiamo quelli iniettati
+            ids_supplementi = getattr(spedizione, '_supplementi_simulati', [])
+
         context = {
             "spedizione": spedizione,
             "pacchi": pacchi,
             "zona": zona_gls,
             "peso_tassabile": peso_tassabile,
             "dettaglio": dettaglio,
+            "ids_supplementi": ids_supplementi  # Passiamo la lista al contesto
         }
 
         if zona_gls.spedizioniere.tipo_tariffazione == "scaglioni":
@@ -124,6 +132,9 @@ class GLSService:
         zona_gls = context["zona"]
         peso_tassabile = context["peso_tassabile"]
         dettaglio = context["dettaglio"]
+
+        # 🟢 CORREZIONE: Usiamo gli ID passati dal context (che gestisce DB o Simulazione)
+        ids_supplementi = context.get("ids_supplementi", [])
 
         # 1. Calcolo tariffa base
         scaglioni = TariffValidityService.filtra_validita(
@@ -159,9 +170,7 @@ class GLSService:
 
         pre_base = prezzo + costo_overflow
 
-        # 2. CHIAMATA AL SUPPLEMENT ENGINE (con gestione simulazione)
-        ids_supplementi = getattr(spedizione, '_supplementi_simulati', [])
-
+        # 2. CHIAMATA AL SUPPLEMENT ENGINE
         supp = SupplementEngine.calcola(
             spedizione,
             pacchi,

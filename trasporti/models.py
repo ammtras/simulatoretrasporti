@@ -91,6 +91,7 @@ class Spedizione(models.Model):
     servizi_richiesti = models.ManyToManyField(TipoServizio, blank=True)
     contrassegno_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     assicurazione_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    supplementi = models.ManyToManyField('Supplemento', blank=True)
     trasportatore_scelto = models.ForeignKey(Spedizioniere,on_delete=models.CASCADE,null=True, blank=True)
     valore_preventivo = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     def __str__(self):

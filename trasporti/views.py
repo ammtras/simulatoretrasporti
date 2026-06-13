@@ -36,7 +36,7 @@ from trasporti.models import Zona_spedizioniere
 from decimal import Decimal
 from django.db.models import Q
 
-def calcola_preventivi(spedizione, pacchi):
+def calcola_preventiviZZ(spedizione, pacchi):
     preventivi = []
 
     # 1. Recuperiamo gli ID di ENTRAMBE le zone selezionate nel form
@@ -102,14 +102,73 @@ def calcola_preventivi(spedizione, pacchi):
 
     return preventivi
 
+def calcola_preventivi(spedizione, pacchi):
+    preventivi = []
 
+    # 1. Estrazione sicura degli ID supplementi dall'oggetto spedizione (iniettati dalla View)
+    ids_supp = getattr(spedizione, '_supplementi_simulati', [])
+
+    # 2. Recupero zone
+    id_zona_partenza = spedizione.da_zona_id
+    id_zona_arrivo = spedizione.a_zona_id
+
+    zone_spedizionieri_disponibili = Zona_spedizioniere.objects.filter(
+        Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
+    ).distinct().select_related('spedizioniere')
+
+    # 3. Ciclo dinamico sui corrieri
+    for z_spedizioniere in zone_spedizionieri_disponibili:
+
+        # 🟢 CORRIERE REALE: GLS
+        if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
+            dettaglio_pesi = GLSService.dettaglio_calcolo_preventivo(pacchi, z_spedizioniere)
+
+            # 🟢 CREAZIONE CONTESTO CON PASSAGGIO ESPLICITO DEGLI ID SUPPLEMENTI
+            context_gls = {
+                "spedizione": spedizione,
+                "pacchi": pacchi,
+                "zona": z_spedizioniere,
+                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
+                "dettaglio": dettaglio_pesi,
+                "ids_supplementi": ids_supp  # <--- Fondamentale per il ricalcolo
+            }
+
+            # GLSService._scaglioni userà ids_supplementi dal context
+            result_reale = GLSService._scaglioni(context_gls)
+
+            if result_reale:
+                preventivi.append({
+                    "zona_tariffazione_id": z_spedizioniere.id,
+                    "trasportatore": z_spedizioniere.spedizioniere.nome,
+                    "prezzo": result_reale["prezzo"],
+                    "dettaglio": result_reale["dettaglio"]
+                })
+
+        # 🟡 MOCK CARRIERS
+        else:
+            peso_reale_totale = sum(Decimal(str(p.get("peso_kg", 0))) for p in pacchi if p and not p.get("DELETE", False))
+            prezzo_mock = peso_reale_totale * Decimal("1.5")
+
+            if prezzo_mock < z_spedizioniere.peso_minimo_fatturabile:
+                prezzo_mock = z_spedizioniere.peso_minimo_fatturabile * Decimal("1.5")
+
+            preventivi.append({
+                "zona_tariffazione_id": z_spedizioniere.id,
+                "trasportatore": z_spedizioniere.spedizioniere.nome,
+                "prezzo": prezzo_mock,
+                "dettaglio": {"items": [{"label": "Tariffa Base Simulata", "value": f"€ {prezzo_mock:.2f}"}]}
+            })
+
+    # ⭐ CALCOLO BEST PRICE
+    if preventivi:
+        min_price = min(p["prezzo"] for p in preventivi)
+        for p in preventivi:
+            p["best"] = (p["prezzo"] == min_price)
+
+    return preventivi
 
 
 #in crea_spedizione chiedere conferma se si vuole creare una spezione con data antecedente ad oggi
-
-
-
-
 
 
 def crea_spedizione(request):
@@ -145,11 +204,16 @@ def crea_spedizione(request):
             if action == "simulate":
                 spedizione_temp = form.save(commit=False)
 
+                # 🟢 CONVERSIONE ID IN INTERI
+                # request.POST.getlist restituisce stringhe, convertiamole in int
+                ids_int = [int(i) for i in ids_supplementi if i.isdigit()]
+
                 # Inietto servizi e supplementi per il motore di calcolo
                 servizi_scelti = form.cleaned_data.get("servizi_richiesti", [])
                 spedizione_temp._servizi_simulati = list(servizi_scelti)
                 # Passiamo gli ID dei supplementi al motore di calcolo
-                spedizione_temp._supplementi_simulati = ids_supplementi
+                #spedizione_temp._supplementi_simulati = ids_supplementi
+                spedizione_temp._supplementi_simulati = ids_int
 
                 preventivi = calcola_preventivi(spedizione_temp, pacchi)
 
@@ -203,9 +267,6 @@ def crea_spedizione(request):
         "supplementi_disponibili": supplementi_disponibili,
         "ids_selezionati": ids_supplementi  # <--- AGGIUNTA FONDAMENTALE
     })
-
-
-
 
 
 class Spedizioni(ListView):
