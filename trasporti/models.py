@@ -34,19 +34,25 @@ class Spedizioniere(models.Model):
 
 #zona tariffazione spedizioniere
 class Zona_spedizioniere(models.Model):
+    nome = models.CharField(max_length=200, null=True, blank=True)
     spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE)
-    zona = models.ForeignKey(Zona, on_delete=models.CASCADE)
+    # 🟢 UN UNICO CAMPO PER TUTTE LE ZONE ABILITATE (Sia partenza che arrivo)
+    zona = models.ManyToManyField(
+        Zona,
+        related_name="zone_tariffazione_spedizionieri",
+        help_text="Seleziona le zone che sono servite questa tariffa"
+    )
     divisore_volumetrico = models.IntegerField(default=5000)
     peso_minimo_fatturabile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     contrassegno_allowed = models.BooleanField(default=False)
 
-
     def __str__(self):
-        return f"ZONA TARIFFAZIONE {self.spedizioniere} {self.zona} "
+        # Uniamo i nomi di tutte le zone associate (es: "Italia, Spagna")
+        nomi_zone = ", ".join([z.nome for z in self.zona.all()])
+        return f"{self.spedizioniere} | TARIFFA {self.nome} (ID {self.id})| ZONE: [{nomi_zone}]"
 
     class Meta:
         verbose_name_plural = "Zone Tariffazione Spedizionieri"
-        unique_together = ("spedizioniere", "zona")
 
 class TipoServizio(models.Model):
     # Un codice univoco che userai nel codice Python
@@ -56,6 +62,19 @@ class TipoServizio(models.Model):
     def __str__(self):
         return self.nome
 
+
+class MappaturaZonaTariffaria(models.Model):
+    stato_partenza = models.CharField(max_length=100, help_text="Es: Italia")
+    stato_destinazione = models.CharField(max_length=100, help_text="Es: Spagna, Svizzera, Italia")
+    # La zona geografica astratta a cui corrisponde questa combinazione di Stati
+    zona_corrispondente = models.ForeignKey(Zona, on_delete=models.CASCADE,related_name="mappature_tariffarie")
+
+    class Meta:
+        verbose_name = "Mappatura Zona Tariffaria"
+        verbose_name_plural = "Mappature Zone Tariffarie"
+
+    def __str__(self):
+        return f"{self.stato_partenza} ➡️ {self.stato_destinazione} = {self.zona_corrispondente.nome}"
 class Spedizione(models.Model):
     #data = models.DateField(default=timezone.now)
     data = models.DateField(default=timezone.now)
@@ -63,11 +82,16 @@ class Spedizione(models.Model):
     a_cliente_citta = models.CharField(max_length=200)
     da_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="dazona")
     a_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="a_zona")
-    zona_tariffazione_spedizioniere = models.ForeignKey(Zona_spedizioniere,on_delete=models.CASCADE,related_name="zona_tariffazione_spedizioniere")
+    zona_tariffazione_spedizioniere = models.ForeignKey(
+        Zona_spedizioniere,
+        on_delete=models.SET_NULL,  # Evita cancellazioni a cascata delle spedizioni
+        null=True,  # Permette al record di non avere una tariffa durante la simulazione
+        blank=True,  # Permette di salvare il form senza questo campo inizialmente
+        related_name="spedizioni"  # Un related_name più pulito e leggibile
+    )
     servizi_richiesti = models.ManyToManyField(TipoServizio, blank=True)
     contrassegno_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     assicurazione_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    peso_totale_kg = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     trasportatore_scelto = models.ForeignKey(Spedizioniere,on_delete=models.CASCADE,null=True, blank=True)
     valore_preventivo = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     def __str__(self):
@@ -143,8 +167,14 @@ class Supplemento(models.Model):
         (ASPEDIZIONE, "a spedizione"),
     ]
 
+    # 🟢 RELAZIONE MANY-TO-MANY: Lega il supplemento a una o più zone
+    zone_tariffazione = models.ManyToManyField(
+        Zona_spedizioniere,
+        related_name='supplementi',
+        blank=True,
+        help_text="Seleziona le zone in cui questo supplemento è applicabile. Se vuoto, non verrà applicato."
+    )
 
-    spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE)
     nome = models.CharField(max_length=200)
     calc_type = models.CharField(max_length=28,choices=TYPES)
     applic_type = models.CharField(max_length=28,choices=APPLICAZIONE)
@@ -154,7 +184,7 @@ class Supplemento(models.Model):
     valid_to = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.spedizioniere} | {self.nome} | dal {self.valid_from} a {self.valid_to} | {self.applic_type} | {self.calc_type} | {self.valore}  "
+        return f" {self.nome} | dal {self.valid_from} a {self.valid_to} | {self.applic_type} | {self.calc_type} | {self.valore}  "
 
 
     class Meta:

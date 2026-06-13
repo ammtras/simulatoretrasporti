@@ -29,54 +29,76 @@ def loggout(request):
     return redirect('login')
 
 
-def calcola_preventivi(spedizione, pacchi):
+from trasporti.models import Zona_spedizioniere
 
+from decimal import Decimal
+from django.db.models import Q
+
+def calcola_preventivi(spedizione, pacchi):
     preventivi = []
 
-    # 🔵 peso totale
-    peso_reale_totale = sum(
-        Decimal(p.get("peso_kg", 0))
-        for p in pacchi
-        if p and not p.get("DELETE", False)
-    )
+    # 1. Recuperiamo gli ID di ENTRAMBE le zone selezionate nel form
+    id_zona_partenza = spedizione.da_zona_id
+    id_zona_arrivo = spedizione.a_zona_id
 
-    # =========================
-    # 🟢 GLS (DELEGATO AL SERVICE)
-    # =========================
-    result_gls = GLSService.calcola(spedizione, pacchi)
+    # 2. 🔍 QUERY CON LOGICA "OR" (L'essenza della tua regola)
+    # Chiediamo al database: "Dammi tutte le tariffe dei corrieri dove il ManyToMany 'zona'
+    # contiene la zona di partenza OPPURE la zona di arrivo".
+    #
+    # Esempio: Se da_zona = Milano e a_zona = Calabria:
+    # - Lo Spedizioniere A (Tariffa Unica) viene preso perché ha sia Milano che Calabria nel DB.
+    # - Lo Spedizioniere B (Tariffa Calabria) viene preso perché la query trova il match su a_zona (Calabria).
+    zone_spedizionieri_disponibili = Zona_spedizioniere.objects.filter(
+        Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
+    ).distinct().select_related('spedizioniere')
 
-    if result_gls:
-        preventivi.append({
-            "trasportatore": "GLS",
-            "prezzo": result_gls["prezzo"],
-            "dettaglio": result_gls["dettaglio"]
-        })
+    # 3. Ciclo dinamico sui corrieri trovati nel DB
+    for z_spedizioniere in zone_spedizionieri_disponibili:
 
-    # =========================
-    # 🟡 MOCK CARRIER
-    # =========================
-    preventivi += [
-        {
-            "trasportatore": "DHL",
-            "prezzo": peso_reale_totale * Decimal("1.5")
-        },
-        {
-            "trasportatore": "UPS",
-            "prezzo": peso_reale_totale * Decimal("1.8")
-        }
-    ]
+        # 🟢 CORRIERE REALE: GLS
+        if z_spedizioniere.spedizioniere.codice == "GLS":
+            dettaglio_pesi = GLSService.dettaglio_calcolo_preventivo(pacchi, z_spedizioniere)
 
-    # =========================
-    # ⭐ BEST PRICE
-    # =========================
-    min_price = min(p["prezzo"] for p in preventivi)
+            context_gls = {
+                "spedizione": spedizione,
+                "pacchi": pacchi,
+                "zona": z_spedizioniere,  # Passiamo l'oggetto completo
+                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
+                "dettaglio": dettaglio_pesi
+            }
 
-    for p in preventivi:
-        p["best"] = (p["prezzo"] == min_price)
+            result_reale = GLSService._scaglioni(context_gls)
+
+            if result_reale:
+                preventivi.append({
+                    "zona_tariffazione_id": z_spedizioniere.id,  # ID per il Radio Button del form
+                    "trasportatore": z_spedizioniere.spedizioniere.nome,
+                    "prezzo": result_reale["prezzo"],
+                    "dettaglio": result_reale["dettaglio"]
+                })
+
+        # 🟡 MOCK CARRIERS: Per gli altri spedizionieri non ancora integrati
+        else:
+            peso_reale_totale = sum(Decimal(p.get("peso_kg", 0)) for p in pacchi if p and not p.get("DELETE", False))
+            prezzo_mock = peso_reale_totale * Decimal("1.5")
+
+            if prezzo_mock < z_spedizioniere.peso_minimo_fatturabile:
+                prezzo_mock = z_spedizioniere.peso_minimo_fatturabile * Decimal("1.5")
+
+            preventivi.append({
+                "zona_tariffazione_id": z_spedizioniere.id,
+                "trasportatore": z_spedizioniere.spedizioniere.nome,
+                "prezzo": prezzo_mock,
+                "dettaglio": {"items": [{"label": "Tariffa Base Simulata", "value": f"€ {prezzo_mock:.2f}"}]}
+            })
+
+    # ⭐ CALCOLO BEST PRICE
+    if preventivi:
+        min_price = min(p["prezzo"] for p in preventivi)
+        for p in preventivi:
+            p["best"] = (p["prezzo"] == min_price)
 
     return preventivi
-
-
 def crea_spedizione(request):
     preventivi = None
 
