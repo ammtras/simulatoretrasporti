@@ -114,7 +114,6 @@ class Pacco(models.Model):
 
 class Scaglione(models.Model):
     spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE,null=True)
-    zona = models.ForeignKey(Zona, on_delete=models.CASCADE,null=True)
     zona_spedizioniere = models.ForeignKey(Zona_spedizioniere, on_delete=models.CASCADE)
     min_weight = models.DecimalField(max_digits=8,decimal_places=2)
     max_weight = models.DecimalField(max_digits=8,decimal_places=2)
