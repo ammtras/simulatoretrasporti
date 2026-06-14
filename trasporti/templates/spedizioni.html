@@ -1,4 +1,35 @@
+<a href="{% url 'crea_spedizione' %}"
+   style="position: fixed; top: 30px; right: 30px; background: #28a745; color: white;
+          width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center;
+          justify-content: center; font-size: 30px; text-decoration: none; box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 1000;">
+    +
+</a>
 <h1>Lista Spedizioni salvate</h1>
+<form method="GET" action="." class="mb-4 p-3 bg-light rounded" style="border: 1px solid #ddd;">
+    <div class="row" style="display: flex; gap: 10px; align-items: center;">
+        <input type="text" name="q" placeholder="Cerca città o trasportatore..." value="{{ request.GET.q }}" style="padding: 5px;">
+
+        <label>Da:</label>
+        <input type="date" name="data_da" value="{{ request.GET.data_da }}" style="padding: 5px;">
+
+        <label>A:</label>
+        <input type="date" name="data_a" value="{{ request.GET.data_a }}" style="padding: 5px;">
+
+        <select name="trasportatore" style="padding: 5px;">
+
+
+            <option value="">Tutti i trasportatori</option>
+            {% for t in trasportatori %}
+                <option value="{{ t.id }}" {% if request.GET.trasportatore == t.id|stringformat:"s" %}selected{% endif %}>
+                    {{ t.nome }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" style="padding: 5px 15px; cursor: pointer;">Filtra</button>
+        <a href="?">Reset</a>
+    </div>
+</form>
 
 <table border="1" style="width:100%; border-collapse: collapse;">
     <thead>
@@ -20,11 +51,7 @@
                 <td> data: {{ s.data }} <br>
                      da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br>
                      da {{ s.da_zona }} a {{ s.a_zona }} <br>
-                     totale colli: {% if s.pacchi.all.count %}
-                        {{ s.pacchi.count }}
-                    {% else %}
-                        0
-                    {% endif %} <br>
+                      <br>
                     contrassegno € {{s.contrassegno_euro}}<br>
                     assicurazione € {{s.assicurazione_euro}}<br>
                     {{s.trasportatore_scelto}}
@@ -34,7 +61,11 @@
 
 
                 </td>
-                <td>
+                <td>totale colli: {% if s.pacchi.all.count %}
+                        {{ s.pacchi.count }}
+                    {% else %}
+                        0
+                    {% endif %} <br>
                     {% if s.pacchi.all %}
                     {% for pacco in s.pacchi.all %}
                     ({{pacco}})<br>
@@ -52,7 +83,7 @@
                     </span>
                 {% else %}
                     <strong>{{ riga.label }}:</strong>
-                    {% if riga.is_html %}{{ riga.value|safe }}{% else %}{{ riga.value }}{% endif %}
+                    {% if riga.is_html %}{{ riga.value|safe }}{% else %}{{ riga.value|safe }}{% endif %}
                     <br>
                 {% endif %}
             {% endif %}
@@ -87,3 +118,7 @@
         {% endfor %}
     </tbody>
 </table>
+
+
+<div class="header-container">
+</div>

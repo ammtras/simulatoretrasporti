@@ -5,7 +5,7 @@ from django.db.models import Q
 from trasporti.services.base import TariffValidityService
 from trasporti.services.supplement_engine import SupplementEngine
 from trasporti.services.fuel_engine import FuelEngine
-from trasporti.services.detail_renderer import DetailRenderer
+from trasporti.services.XXXdetail_renderer import DetailRenderer
 
 class GLSService:
 
@@ -19,58 +19,200 @@ class GLSService:
     # =========================
     # 🟢 PESO TASSABILE
     # =========================
+
     @staticmethod
     def _peso_tassabile(pacchi, zona_gls):
-        print(pacchi)
-        divisore = zona_gls.divisore_volumetrico
 
+        print('ABC')
+
+        # -------------------------
+        # 1. PESO REALE
+        # -------------------------
         peso_reale = sum(
-            Decimal(p["peso_kg"])
+            Decimal(p.get("peso_kg") or 0)
             for p in pacchi
-            if p and p.get("peso_kg") is not None
+            if p
         )
 
-        peso_volume = sum(
-            (Decimal(p["profondita_cm"]) *
-             Decimal(p["larghezza_cm"]) *
-             Decimal(p["altezza_cm"])) / Decimal(divisore)
+        # -------------------------
+        # 2. PRIMA STIMA VOLUME (con divisore base)
+        # -------------------------
+        divisore_base = zona_gls.divisore_volumetrico
+
+        peso_volume_base = sum(
+            (
+                    Decimal(p.get("profondita_cm") or 0) *
+                    Decimal(p.get("larghezza_cm") or 0) *
+                    Decimal(p.get("altezza_cm") or 0)
+            ) / Decimal(divisore_base)
             for p in pacchi
-            if p and all(k in p for k in ["profondita_cm", "larghezza_cm", "altezza_cm"])
+            if p
         )
-        print(f'peso reale :{peso_reale}')
-        print(f'peso volume :{peso_volume}')
+
+        # -------------------------
+        # 3. DIVISORE DINAMICO (REGOLA ZONA)
+        # -------------------------
+        divisore_finale = zona_gls.get_divisore_effettivo(
+            peso_reale,
+            peso_volume_base
+        )
+
+        # -------------------------
+        # 4. RICALCOLO VOLUME DEFINITIVO
+        # -------------------------
+        peso_volume = sum(
+            (
+                    Decimal(p.get("profondita_cm") or 0) *
+                    Decimal(p.get("larghezza_cm") or 0) *
+                    Decimal(p.get("altezza_cm") or 0)
+            ) / Decimal(divisore_finale)
+            for p in pacchi
+            if p
+        )
+
+        print(f'MMMM------- QUI SONO IN GLS.PY _PESO_TASSABILE{peso_volume}')
+
+
         return max(peso_reale, peso_volume)
-        print(f'max: {max}')
+
 
     # =========================
     # 🟢 ENTRY POINT
     # =========================
+
     @staticmethod
-    def dettaglio_calcolo_preventivo(pacchi, zona_gls):
+    def dettaglio_calcolo_preventivoxxx(pacchi, zona_gls):
 
-        divisore = zona_gls.divisore_volumetrico
-
+        # -------------------------
+        # 1. PESO REALE
+        # -------------------------
         peso_reale = sum(
-            Decimal(p["peso_kg"])
+            Decimal(p.get("peso_kg") or 0)
             for p in pacchi
-            if p and p.get("peso_kg") is not None
+            if p
         )
 
+        # -------------------------
+        # 2. PRIMA STIMA VOLUME (divisore base)
+        # -------------------------
+        divisore_base = zona_gls.divisore_volumetrico
+
+        peso_volume_base = sum(
+            (
+                    Decimal(p.get("altezza_cm") or 0) *
+                    Decimal(p.get("larghezza_cm") or 0) *
+                    Decimal(p.get("profondita_cm") or 0)
+            ) / Decimal(divisore_base)
+            for p in pacchi
+            if p
+        )
+
+        # -------------------------
+        # 3. DIVISORE DINAMICO (REGOLA ZONA)
+        # -------------------------
+        divisore_finale = zona_gls.get_divisore_effettivo(
+            peso_reale,
+            peso_volume_base
+        )
+
+        # -------------------------
+        # 4. VOLUME DEFINITIVO
+        # -------------------------
         peso_volume = sum(
             (
                     Decimal(p.get("altezza_cm") or 0) *
                     Decimal(p.get("larghezza_cm") or 0) *
                     Decimal(p.get("profondita_cm") or 0)
-            ) / Decimal(divisore)
+            ) / Decimal(divisore_finale)
             for p in pacchi
+            if p
         )
 
+        # -------------------------
+        # 5. PESO TASSABILE
+        # -------------------------
         peso_tassabile = max(peso_reale, peso_volume)
+
+        # -------------------------
+        # DEBUG
+        # -------------------------
+        print('dettaglio_preventivo')
+        print(f"peso reale : {peso_reale}")
+        print(f"peso volume base : {peso_volume_base}")
+        print(f"divisore finale : {divisore_finale}")
+        print(f"peso volume finale : {peso_volume}")
+        print(f"peso tassabile : {peso_tassabile}")
+
+        # -------------------------
+        # OUTPUT
+        # -------------------------
+        return {
+            "peso_reale": peso_reale,
+            "peso_volume": peso_volume,
+            "peso_tassabile": peso_tassabile,
+            "formula": f"max({peso_reale}, {peso_volume}) = {peso_tassabile}"
+        }
+
+
+   #serve ok
+    @staticmethod
+    def dettaglio_calcolo_preventivoxxx(pacchi, zona_gls):
+        # 1. Calcoli preliminari (Peso reale e Volume totale in cm3)
+        peso_reale = sum(Decimal(p.get("peso_kg") or 0) for p in pacchi if p)
+
+        volume_totale_cm3 = sum(
+            Decimal(p.get("altezza_cm") or 0) * Decimal(p.get("larghezza_cm") or 0) * Decimal(
+                p.get("profondita_cm") or 0)
+            for p in pacchi if p
+        )
+
+        # 2. Otteniamo il divisore basandoci solo sul peso reale
+        # (Passiamo 0 come peso_volume perché non ci serve per decidere il divisore)
+        divisore_finale = zona_gls.get_divisore_effettivo(peso_reale, 0)
+
+        # 3. Calcolo unico del peso volume
+        peso_volume = volume_totale_cm3 / Decimal(divisore_finale)
+
+        peso_tassabile = max(peso_reale, peso_volume)
+
+        # DEBUG
+        print(f"----eseguito in gls.py def dettaglio_calcolo_preventivo")
 
         return {
             "peso_reale": peso_reale,
             "peso_volume": peso_volume,
             "peso_tassabile": peso_tassabile,
+            "formula": f"max({peso_reale}, {peso_volume}) = {peso_tassabile}"
+        }
+
+    @staticmethod
+    def dettaglio_calcolo_preventivo(pacchi, zona_gls):
+        # 1. Calcoli preliminari
+        peso_reale = sum(Decimal(p.get("peso_kg") or 0) for p in pacchi if p)
+
+        # Calcolo volumetrico esplicito
+        volume_totale_cm3 = sum(
+            Decimal(p.get("altezza_cm") or 0) * Decimal(p.get("larghezza_cm") or 0) * Decimal(
+                p.get("profondita_cm") or 0)
+            for p in pacchi if p
+        )
+
+        # 2. Otteniamo il divisore basandoci sul peso reale (o come da tua logica)
+        divisore_finale = zona_gls.get_divisore_effettivo(peso_reale, 0)
+
+        # 3. Calcolo peso volume
+        peso_volume = volume_totale_cm3 / Decimal(divisore_finale)
+        peso_tassabile = max(peso_reale, peso_volume)
+
+        # DEBUG: assicuriamoci di vedere cosa ritorniamo
+        print(f"DEBUG_CALCOLO: Vol={volume_totale_cm3}, Div={divisore_finale}, PV={peso_volume}")
+
+        return {
+            "peso_reale": peso_reale,
+            "peso_volume": peso_volume,
+            "peso_tassabile": peso_tassabile,
+            "volume_cm3": volume_totale_cm3,  # <--- ASSICURATI CHE SIA PRESENTE
+            "divisore": divisore_finale,  # <--- ASSICURATI CHE SIA PRESENTE
             "formula": f"max({peso_reale}, {peso_volume}) = {peso_tassabile}"
         }
 
@@ -122,9 +264,7 @@ class GLSService:
         return GLSService._a_collo(pacchi, zona_gls)
 
 
-    # =========================
-    # 🟢 SCAGLIONI
-    # =========================
+   #serve, viene hiamata da views.py
     @staticmethod
     def _scaglioni(context):
         spedizione = context["spedizione"]
@@ -132,6 +272,7 @@ class GLSService:
         zona_gls = context["zona"]
         peso_tassabile = context["peso_tassabile"]
         dettaglio = context["dettaglio"]
+        print(spedizione,pacchi,zona_gls,peso_tassabile,dettaglio)
 
         # 🟢 CORREZIONE: Usiamo gli ID passati dal context (che gestisce DB o Simulazione)
         ids_supplementi = context.get("ids_supplementi", [])
@@ -145,7 +286,7 @@ class GLSService:
         scaglione = scaglioni.filter(
             min_weight__lte=peso_tassabile
         ).filter(
-            Q(max_weight__gte=peso_tassabile) | Q(max_weight__isnull=True)
+            Q(max_weight__gt=peso_tassabile) | Q(max_weight__isnull=True)
         ).first()
 
         if not scaglione:
@@ -230,10 +371,18 @@ class GLSService:
         stringa_supp_con_fuel = "<br>".join(lista_supp_con_fuel) if lista_supp_con_fuel else "Nessuno"
         stringa_supp_senza_fuel = "<br>".join(lista_supp_senza_fuel) if lista_supp_senza_fuel else "Nessuno"
 
+            # Verifica i nomi delle chiavi esatte che arrivano dal form
+            # Spesso arrivano come 'altezza', 'larghezza' o 'profondita' senza '_cm'
+        # 🟢 AGGIUNTA DEL DIVISORE NELLA STRINGA
+        # Costruiamo la stringa formattata come hai chiesto: cm3 / divisore
+        volume_cm3 = dettaglio.get('volume_cm3', 0)
+        divisore = dettaglio.get('divisore', 1)
+        formula_volume = f"{volume_cm3:.0f} cm³ / {divisore}"
+
         items_ordinati = [
             {"label": "Peso tassabile", "value": f"{peso_tassabile:.2f} kg"},
             {"label": "Peso reale", "value": f"{dettaglio['peso_reale']:.2f} kg"},
-            {"label": "Peso volume", "value": f"{dettaglio['peso_volume']:.2f} kg"},
+            {"label": "Peso volume", "value": f"{dettaglio['peso_volume']:.2f} kg ({formula_volume})"},
             {"label": "Scaglione", "value": scaglione_testo, "is_html": True},
             {"label": "Supplementi con fuel applicati", "value": stringa_supp_con_fuel, "is_html": True},
             {"label": "Supplementi senza fuel applicati", "value": stringa_supp_senza_fuel, "is_html": True},

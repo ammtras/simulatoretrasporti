@@ -37,14 +37,6 @@ class DetailRenderer:
         return items
 
     @staticmethod
-    def _is_validXXX(v):
-        if v is None:
-            return False
-        if v == 0 or v == Decimal("0"):
-            return False
-        if isinstance(v, str) and v.strip() == "":
-            return False
-        return True
 
     @staticmethod
     def _is_valid(v):

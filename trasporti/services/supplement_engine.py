@@ -3,77 +3,123 @@ from trasporti.models import Supplemento
 from trasporti.services.base import TariffValidityService
 
 
+
 class SupplementEngine:
 
     @staticmethod
     def calcola(spedizione, pacchi, base_importo, zona_corrente, ids_supplementi=None):
-        """
-        Calcola i supplementi.
-        Se ids_supplementi è fornito, calcola solo quelli selezionati (modalità simulazione).
-        Altrimenti, usa la logica standard basata sulla zona.
-        """
+        # 1. Recupera solo ciò che è SELEZIONATO
+        # Se non hai selezionato nulla (ids_supplementi vuoto), la lista deve essere vuota!
+        if not ids_supplementi:
+            # Aggiungi qui solo i supplementi obbligatori (es. ASSIC/CONTR se presenti nel form)
+            # Ma evita di caricare "tutti" i supplementi della zona
+            ids_supplementi = []
 
-        # 🟢 LOGICA DI FILTRO: Se abbiamo IDs dalla simulazione, usiamo quelli.
+        queryset = Supplemento.objects.filter(
+            zone_tariffazione=zona_corrente,
+            id__in=ids_supplementi  # <--- FORZA IL FILTRO A VUOTO SE NON SELEZIONATO
+        )
+
+
         if ids_supplementi:
-            queryset = Supplemento.objects.filter(id__in=ids_supplementi)
-        else:
-            queryset = Supplemento.objects.filter(zone_tariffazione=zona_corrente)
+            queryset = queryset.filter(id__in=ids_supplementi)
+
 
         supplementi = TariffValidityService.filtra_validita(
             queryset.select_related('tipo_servizio').distinct(),
             spedizione.data
         )
 
+
         totale = Decimal("0")
         dettaglio = []
 
-        # Recupero codici servizi (usando l'attributo iniettato se presente, altrimenti il DB)
+        # 🟢 SERVIZI SELEZIONATI (non supplementi)
         servizi_selezionati_codici = []
-        if hasattr(spedizione, '_servizi_simulati'):
-            servizi_selezionati_codici = [str(c).upper() for c in spedizione._servizi_simulati if c]
-        elif spedizione.pk:
-            servizi_selezionati_codici = [str(c).upper() for c in
-                                          spedizione.servizi_richiesti.values_list('codice', flat=True) if c]
 
+        if hasattr(spedizione, "_servizi_simulati"):
+            servizi_selezionati_codici = [
+                str(c).upper() for c in spedizione._servizi_simulati if c
+            ]
+
+        elif spedizione.pk:
+            servizi_selezionati_codici = list(
+                spedizione.servizi_richiesti.values_list("codice", flat=True)
+            )
+            servizi_selezionati_codici = [
+                str(c).upper() for c in servizi_selezionati_codici if c
+            ]
+
+        # 🟢 LOOP SUPPLEMENTI
         for sup in supplementi:
+
             costo = Decimal("0")
-            minimo = getattr(sup, 'diritto_minimo_euro', Decimal("0"))
-            codice_servizio = sup.tipo_servizio.codice.upper() if sup.tipo_servizio else None
+            minimo = getattr(sup, "diritto_minimo_euro", Decimal("0"))
+            codice_servizio = (
+                sup.tipo_servizio.codice.strip()
+                if sup.tipo_servizio else None
+            )
 
             if not codice_servizio:
                 continue
 
-            # =================================================================
-            # 🟢 LOGICA DI CALCOLO
-            # =================================================================
+            # =========================================================
+            # 🔥 ASSIC / CONTR (FIX DEFINITIVO)
+            # =========================================================
             if codice_servizio in ["ASSIC", "CONTR"]:
-                # Recuperiamo il valore base (simulato o da DB)
-                attr_name = 'assicurazione_euro' if codice_servizio == "ASSIC" else 'contrassegno_euro'
-                valore_base = Decimal(str(getattr(spedizione, attr_name, 0) or 0))
 
-                if valore_base > Decimal("0"):
-                    if sup.calc_type == Supplemento.PERCENTAGE:
-                        costo = valore_base * sup.valore / Decimal("100")
-                        if minimo > 0: costo = max(costo, minimo)
-                    elif sup.calc_type == Supplemento.FIXED:
-                        costo = sup.valore
-                else:
+                attr_name = (
+                    "assicurazione_euro"
+                    if codice_servizio == "ASSIC"
+                    else "contrassegno_euro"
+                )
+
+                # 🟢 Fallback robusto (SIMULAZIONE + POST + DB SAFE)
+                valore_base = (
+                    getattr(spedizione, attr_name, None)
+                    or getattr(spedizione, "_valori_simulati", {}).get(attr_name)
+                    or 0
+                )
+
+                valore_base = Decimal(str(valore_base))
+
+                if valore_base <= 0:
                     continue
 
+                if sup.calc_type == Supplemento.PERCENTAGE:
+                    costo = valore_base * sup.valore / Decimal("100")
+                    if minimo > 0:
+                        costo = max(costo, minimo)
+
+                elif sup.calc_type == Supplemento.FIXED:
+                    costo = sup.valore
+
+            # =========================================================
+            # 🔵 ALTRI SUPPLEMENTI
+            # =========================================================
             else:
-                # Se non è ASSIC/CONTR, deve essere tra i servizi selezionati
-                if codice_servizio not in servizi_selezionati_codici and not ids_supplementi:
+
+                # se non selezionato e non simulazione → skip
+                if (
+                    ids_supplementi is None
+                    and codice_servizio not in servizi_selezionati_codici
+                ):
                     continue
 
                 fattore = Decimal(len(pacchi)) if sup.applic_type == Supplemento.ACOLLO else Decimal("1")
 
                 if sup.calc_type == Supplemento.FIXED:
                     costo = sup.valore * fattore
+
                 elif sup.calc_type == Supplemento.PERCENTAGE:
                     costo = base_importo * sup.valore / Decimal("100")
-                    if minimo > 0: costo = max(costo, minimo)
+                    if minimo > 0:
+                        costo = max(costo, minimo)
 
-            if costo > Decimal("0"):
+            # =========================================================
+            # 🟢 ACCUMULO
+            # =========================================================
+            if costo > 0:
                 totale += costo
                 dettaglio.append({
                     "nome": sup.nome,

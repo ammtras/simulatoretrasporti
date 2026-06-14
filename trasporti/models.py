@@ -1,5 +1,7 @@
 from django.db import models
 from django.utils import timezone
+from decimal import Decimal
+
 
 
 
@@ -35,21 +37,53 @@ class Spedizioniere(models.Model):
 #zona tariffazione spedizioniere
 class Zona_spedizioniere(models.Model):
     nome = models.CharField(max_length=200, null=True, blank=True)
+
     spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE)
+
     # 🟢 UN UNICO CAMPO PER TUTTE LE ZONE ABILITATE (Sia partenza che arrivo)
     zona = models.ManyToManyField(
         Zona,
         related_name="zone_tariffazione_spedizionieri",
         help_text="Seleziona le zone che sono servite questa tariffa"
     )
+    priorita = models.IntegerField(default=0, help_text="Più alto è il numero, più è specifica la zona.")
     divisore_volumetrico = models.IntegerField(default=5000)
+    divisore_volumetrico_light = models.IntegerField(null=True, blank=True)
+    peso_soglia_light = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     peso_minimo_fatturabile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     contrassegno_allowed = models.BooleanField(default=False)
+
+    def get_divisore_effettivo(self, peso_reale,peso_volume):
+        # Converte in Decimal per sicurezza
+        peso_attuale = Decimal(str(peso_reale))
+
+        # DEBUG: Stampiamo esattamente cosa c'è nell'oggetto
+        print(f"--- divisore effettivo DEBUG ZONA: {self.nome} ---")
+        print(f"Valori DB -> Soglia: '{self.peso_soglia_light}', DivLight: '{self.divisore_volumetrico_light}'")
+
+        if self.peso_soglia_light:
+            print(f'peso soglia light{self.peso_soglia_light}')
+
+        soglia = self.peso_soglia_light if self.peso_soglia_light else None
+        print(f'soglia{soglia}')
+        divisore_light = Decimal(str(self.divisore_volumetrico_light)) if self.divisore_volumetrico_light else None
+
+        # Se la zona NON deve avere il divisore light, assicurati che nel DB siano NULL
+        if not soglia or soglia <= 0 or not divisore_light or divisore_light <= 0:
+            #print("-> Esito: Logica light NON applicabile (valori NULL o <=0)")
+            return self.divisore_volumetrico
+
+        if peso_attuale < soglia:
+            #print(f"-> Esito: Applico Divisore LIGHT ({divisore_light}) perché {peso_attuale} < {soglia}")
+            return divisore_light
+
+        #print(f"-> Esito: Applico Divisore STANDARD ({self.divisore_volumetrico})")
+        return self.divisore_volumetrico
 
     def __str__(self):
         # Uniamo i nomi di tutte le zone associate (es: "Italia, Spagna")
         nomi_zone = ", ".join([z.nome for z in self.zona.all()])
-        return f"{self.spedizioniere} | TARIFFA {self.nome} (ID {self.id})| ZONE: [{nomi_zone}]"
+        return f"{self.spedizioniere} | TARIFFA {self.nome} (ID {self.id})| ZONE: [{nomi_zone}] | PRIORITà: {self.priorita} "
 
     class Meta:
         verbose_name_plural = "Zone Tariffazione Spedizionieri"
@@ -60,7 +94,10 @@ class TipoServizio(models.Model):
     nome = models.CharField(max_length=100) # es: "Assicurazione Merce", "Contrassegno"
 
     def __str__(self):
-        return self.nome
+        return f'{self.nome} COD: {self.codice}'
+
+    class Meta:
+        verbose_name_plural = "Mappatura Supplementi (Tipo Servizi)"
 
 
 class MappaturaZonaTariffaria(models.Model):
@@ -77,8 +114,8 @@ class MappaturaZonaTariffaria(models.Model):
         return f"{self.stato_partenza} ➡️ {self.stato_destinazione} = {self.zona_corrispondente.nome}"
 class Spedizione(models.Model):
     data = models.DateField(default=timezone.now)
-    da_cliente_citta = models.CharField(max_length=200)
-    a_cliente_citta = models.CharField(max_length=200)
+    da_cliente_citta = models.CharField(max_length=200, null=True, blank=True)
+    a_cliente_citta = models.CharField(max_length=200, null=True, blank=True)
     da_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="dazona")
     a_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="a_zona")
     zona_tariffazione_spedizioniere = models.ForeignKey(

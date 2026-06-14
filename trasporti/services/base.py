@@ -40,7 +40,7 @@ class BaseEngineXXX:
         return prezzo_totale
 
 
-class BaseEngine:
+class XXXBaseEngine:
     def calcola(self, spedizione, spedizioniere, ids_supplementi=None):
         prezzo_totale = self.calcola_base(spedizione, spedizioniere)
 

@@ -9,6 +9,7 @@ class PaccoInline(admin.TabularInline):
 class SpedizioneAdmin(admin.ModelAdmin):
     list_display = ("da_cliente_citta", "a_cliente_citta", "data")
     inlines = [PaccoInline]
+    readonly_fields = ['valore_preventivo','trasportatore_scelto','zona_tariffazione_spedizioniere']
 
 
 admin.site.register(Zona)

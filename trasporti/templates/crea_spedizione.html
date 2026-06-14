@@ -7,12 +7,17 @@
     {{ form.as_p }}
 
     {% for supp in supplementi_disponibili %}
-    <label>
-        <input type="checkbox" name="supplementi_selezionati" value="{{ supp.id }}"
-               {% if supp.id|stringformat:"s" in ids_selezionati %}checked{% endif %}>
-        {{ supp.nome }}
-    </label>
-{% endfor %}
+        {% if supp.tipo_servizio.codice not in "ASSIC,CONTR,FUELS,PEAKS" %}
+        <label>
+            <input type="checkbox" name="supplementi_selezionati" value="{{ supp.id }}"
+                   {% if supp.id|stringformat:"s" in ids_selezionati %}checked{% endif %}>
+            {{ supp.nome }}
+        </label>
+        {% endif %}
+    {% endfor %}
+
+
+
 
 
 
@@ -94,9 +99,18 @@
             </li>
         {% endfor %}
     </ul>
- GLS:
-    Lunghezza per collo max cm 300, supplemento OVERSIZED a partire da cm 120.
-Peso per collo max KG 30, supplemento OVERSIZED per colli non macchinabil
     <input type="hidden" name="trasportatore">
     <input type="hidden" name="prezzo">
 {% endif %}
+
+    <br>
+    <br>
+    NOTA 1. <br>
+    il supplemento codice "PEAKS" di peak season va creato prima della creazione delle spedizioni  <br>
+    (se no il suo id non sarà incluso nella lista dei supplementi della spedizione)  <br>
+    questi sono i 4 codici dei 4 supplementi "automatici" in fase di creazione:  <br>
+    FUELS  <br>
+    PEAKS  <br>
+    ASSIC  <br>
+    CONTR  <br>
+
