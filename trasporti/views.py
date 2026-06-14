@@ -9,7 +9,7 @@ from trasporti.services.GLS import GLSService
 from django.utils import timezone
 from decimal import Decimal
 from django.db.models import Q
-
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 
 def loggin(request):
@@ -17,23 +17,25 @@ def loggin(request):
         username = request.POST['username']
         password = request.POST['password']
         user = authenticate(request,username=username,password=password)
+        print('a')
         if user is not None:
+            print('b')
             login(request,user)
-            return redirect('contatti')
+            return redirect('crea_spedizione')
+            print('b2')
         else:
+            print('c')
             messages.success(request, ('Opppsss, qualcosa è andato storto'))
             return redirect('login')
     else:
+        print('url aperto')
         return render(request, 'login.html', {})
-
 
 @login_required
 def loggout(request):
-    logout(request)
-    return redirect('login')
-
-
-
+    if request.method == "POST":
+        logout(request)
+        return redirect('login')
 
 def simula_preventivi(spedizione, pacchi):
     preventivi = []
@@ -111,11 +113,7 @@ def simula_preventivi(spedizione, pacchi):
 
     return preventivi
 
-
-
-
-
-
+@login_required
 def crea_spedizione(request):
     preventivi = None
 
@@ -246,49 +244,77 @@ def crea_spedizione(request):
         "ids_selezionati": [i for i in ids_supplementi if i.isdigit()]
     })
 
-
-
-class Spedizioni(ListView):
+class spedizioni(LoginRequiredMixin,ListView):
     model = Spedizione
     template_name = "spedizioni.html"
     context_object_name = "spedizioni"
     ordering = ["-data", "-id"]
+    paginate_by = 2
 
     def get_queryset(self):
-        # 🟢 OTTIMIZZAZIONE: prefetch_related carica tutti i pacchi in un'unica query velocizzando la pagina
-        return super().get_queryset().prefetch_related('pacchi')
+        # 1. Ottieni il queryset base
+        queryset = super().get_queryset().prefetch_related('pacchi')
+
+        # 2. Leggi i parametri dal form
+        q = self.request.GET.get('q')
+        data_da = self.request.GET.get('data_da')
+        data_a = self.request.GET.get('data_a')
+
+
+        # 3. Filtra il queryset
+        if q:
+            # Filtra per città di partenza, arrivo o nome trasportatore
+            queryset = queryset.filter(
+                Q(da_cliente_citta__icontains=q) |
+                Q(a_cliente_citta__icontains=q)
+            )
+
+        if data_da:
+            queryset = queryset.filter(data__gte=data_da)
+
+        if data_a:
+            queryset = queryset.filter(data__lte=data_a)
+
+
+        trasportatore = self.request.GET.get('trasportatore')
+        # Filtro più robusto
+        if trasportatore and trasportatore.isdigit():  # Controlla che sia un numero valido
+            queryset = queryset.filter(trasportatore_scelto__id=int(trasportatore))
+
+
+        return queryset
 
     def get_context_data(self, **kwargs):
-        # Prende il contesto standard di Django (che contiene già la lista "spedizioni")
+        # Chiama il super per ottenere il queryset già filtrato!
         context = super().get_context_data(**kwargs)
 
-        # 🟢 RICALCOLO DINAMICO: Cicliamo sulle spedizioni destinate al template
+        context['trasportatori'] = Spedizioniere.objects.all().order_by('nome')
+
+        # 3. Il tuo codice per il calcolo dinamico (GLSService)
+        # Ora il ciclo opererà SOLO sugli elementi filtrati
         for s in context["spedizioni"]:
             if s.trasportatore_scelto and s.trasportatore_scelto.nome.upper() == "GLS":
-
-                # Prepariamo la lista dei pacchi come dizionari per il service
+                # ... (il resto del tuo codice di calcolo resta invariato)
                 pacchi_list = [
-                    {
-                        "altezza_cm": p.altezza_cm,
-                        "larghezza_cm": p.larghezza_cm,
-                        "profondita_cm": p.profondita_cm,
-                        "peso_kg": p.peso_kg,
-                    }
+                    {"altezza_cm": p.altezza_cm, "larghezza_cm": p.larghezza_cm, "profondita_cm": p.profondita_cm,
+                     "peso_kg": p.peso_kg}
                     for p in s.pacchi.all()
                 ]
-
-                # Eseguiamo il calcolo ufficiale tramite il GLSService
                 result = GLSService.calcola(s, pacchi_list)
-
                 if result:
-                    # Iniettiamo il dizionario 'dettaglio' nell'oggetto in memoria
                     s.dettaglio = result.get("dettaglio", {})
-                    # Se vuoi mostrare il prezzo aggiornato al volo nel template
                     s.valore_preventivo_aggiornato = result.get("prezzo")
 
         return context
 
+@login_required
+def controllo_tariffe(request):
+    # Carichiamo tutto in un colpo solo per efficienza
 
+    spedizionieri = Spedizioniere.objects.prefetch_related(
+        'sspedizioniere__zona_spedizioniere',
+        'sspedizioniere__supplementi',
+    ).all()
 
-
+    return render(request, 'controllo_tariffe.html', {'spedizionieri': spedizionieri})
 

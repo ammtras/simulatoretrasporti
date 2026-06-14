@@ -1,3 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .debug-table {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        width: 100%;
+        border-collapse: collapse;
+        color: #000;
+        background-color: #fff;
+    }
+    .debug-table th, .debug-table td {
+        border: 1px solid #ccc;
+        padding: 6px;
+        vertical-align: top;
+    }
+    .debug-table th { background-color: #f2f2f2; }
+    .zona-tag { background: #eee; padding: 2px 4px; border: 1px solid #bbb; margin-right: 3px; display: inline-block; }
+</style>
+
+
 <a href="{% url 'crea_spedizione' %}"
    style="position: fixed; top: 30px; right: 30px; background: #28a745; color: white;
           width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center;
@@ -5,33 +26,43 @@
     +
 </a>
 <h1>Lista Spedizioni salvate</h1>
-<form method="GET" action="." class="mb-4 p-3 bg-light rounded" style="border: 1px solid #ddd;">
-    <div class="row" style="display: flex; gap: 10px; align-items: center;">
-        <input type="text" name="q" placeholder="Cerca città o trasportatore..." value="{{ request.GET.q }}" style="padding: 5px;">
+<form method="GET" action="." class="bg-light p-4 rounded shadow-sm border mb-4">
+    <div class="row g-3 align-items-end">
 
-        <label>Da:</label>
-        <input type="date" name="data_da" value="{{ request.GET.data_da }}" style="padding: 5px;">
+        <div class="col-12 col-md-3">
+            <label class="form-label small fw-bold">Ricerca libera su "cliente città" ..</label>
+            <input type="text" name="q" class="form-control" placeholder="Scrivi qui..." value="{{ request.GET.q }}">
+        </div>
 
-        <label>A:</label>
-        <input type="date" name="data_a" value="{{ request.GET.data_a }}" style="padding: 5px;">
+        <div class="col-6 col-md-2">
+            <label class="form-label small fw-bold">Data Da</label>
+            <input type="date" name="data_da" class="form-control" value="{{ request.GET.data_da }}">
+        </div>
 
-        <select name="trasportatore" style="padding: 5px;">
+        <div class="col-6 col-md-2">
+            <label class="form-label small fw-bold">Data A</label>
+            <input type="date" name="data_a" class="form-control" value="{{ request.GET.data_a }}">
+        </div>
 
+        <div class="col-12 col-md-3">
+            <label class="form-label small fw-bold">Trasportatore</label>
+            <select name="trasportatore" class="form-select">
+                <option value="">Tutti</option>
+                {% for t in trasportatori %}
+                    <option value="{{ t.id }}" {% if request.GET.trasportatore == t.id|stringformat:"s" %}selected{% endif %}>
+                        {{ t.nome }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-            <option value="">Tutti i trasportatori</option>
-            {% for t in trasportatori %}
-                <option value="{{ t.id }}" {% if request.GET.trasportatore == t.id|stringformat:"s" %}selected{% endif %}>
-                    {{ t.nome }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <button type="submit" style="padding: 5px 15px; cursor: pointer;">Filtra</button>
-        <a href="?">Reset</a>
+        <div class="col-12 col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary w-100">Filtra</button>
+            <a href="?" class="btn btn-outline-secondary w-100">Annulla Filtri</a>
+        </div>
     </div>
 </form>
-
-<table border="1" style="width:100%; border-collapse: collapse;">
+<table class="debug-table">
     <thead>
         <tr>
 
@@ -48,7 +79,7 @@
         {% for s in spedizioni %}
             <tr style="background:#f9f9f9;">
 
-                <td> data: {{ s.data }} <br>
+                <td> {{ s.data|date:"d/m/Y" }} <br>
                      da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br>
                      da {{ s.da_zona }} a {{ s.a_zona }} <br>
                       <br>
@@ -118,7 +149,27 @@
         {% endfor %}
     </tbody>
 </table>
+{% if is_paginated %}
+<nav aria-label="Navigazione pagine" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Precedente</a>
+            </li>
+        {% endif %}
+
+        <li class="page-item active"><span class="page-link">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span></li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Successiva</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
 
 
-<div class="header-container">
-</div>
+
+
+{% endblock %}

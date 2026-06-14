@@ -38,12 +38,12 @@ class Spedizioniere(models.Model):
 class Zona_spedizioniere(models.Model):
     nome = models.CharField(max_length=200, null=True, blank=True)
 
-    spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE)
+    spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE, related_name='sspedizioniere')
 
     # 🟢 UN UNICO CAMPO PER TUTTE LE ZONE ABILITATE (Sia partenza che arrivo)
     zona = models.ManyToManyField(
         Zona,
-        related_name="zone_tariffazione_spedizionieri",
+        related_name="zone_spedizioniere",
         help_text="Seleziona le zone che sono servite questa tariffa"
     )
     priorita = models.IntegerField(default=0, help_text="Più alto è il numero, più è specifica la zona.")
@@ -116,7 +116,7 @@ class Spedizione(models.Model):
     data = models.DateField(default=timezone.now)
     da_cliente_citta = models.CharField(max_length=200, null=True, blank=True)
     a_cliente_citta = models.CharField(max_length=200, null=True, blank=True)
-    da_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="dazona")
+    da_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="da_zona")
     a_zona = models.ForeignKey(Zona, on_delete=models.CASCADE, related_name="a_zona")
     zona_tariffazione_spedizioniere = models.ForeignKey(
         Zona_spedizioniere,
@@ -129,7 +129,7 @@ class Spedizione(models.Model):
     contrassegno_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     assicurazione_euro = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     supplementi = models.ManyToManyField('Supplemento', blank=True)
-    trasportatore_scelto = models.ForeignKey(Spedizioniere,on_delete=models.CASCADE,null=True, blank=True)
+    trasportatore_scelto = models.ForeignKey(Spedizioniere,on_delete=models.CASCADE,null=True, blank=True, related_name='trasportatore_scelto')
     valore_preventivo = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     def __str__(self):
         return f" {self.data} da cliente città {self.da_cliente_citta} a {self.a_cliente_citta}"
@@ -150,8 +150,8 @@ class Pacco(models.Model):
         verbose_name_plural = 'Pacchi'
 
 class Scaglione(models.Model):
-    spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE,null=True)
-    zona_spedizioniere = models.ForeignKey(Zona_spedizioniere, on_delete=models.CASCADE)
+    spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE,null=True, related_name='spedizioniere')
+    zona_spedizioniere = models.ForeignKey(Zona_spedizioniere, on_delete=models.CASCADE, related_name='zona_spedizioniere')
     min_weight = models.DecimalField(max_digits=8,decimal_places=2)
     max_weight = models.DecimalField(max_digits=8,decimal_places=2)
     price = models.DecimalField(max_digits=10,decimal_places=2)

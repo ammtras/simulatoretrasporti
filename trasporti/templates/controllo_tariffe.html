@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+    .debug-table {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        width: 100%;
+        border-collapse: collapse;
+        color: #000;
+        background-color: #fff;
+    }
+    .debug-table th, .debug-table td {
+        border: 1px solid #ccc;
+        padding: 6px;
+        vertical-align: top;
+    }
+    .debug-table th { background-color: #f2f2f2; }
+    .zona-tag { background: #eee; padding: 2px 4px; border: 1px solid #bbb; margin-right: 3px; display: inline-block; }
+</style>
+
+<h1>Controllo Tariffe a DB</h1>
+
+<table class="debug-table">
+    <thead>
+        <tr>
+            <th>Spedizioniere</th>
+            <th>Tariffa e Zone coinvolte</th>
+            <th>Scaglioni</th>
+            <th>Supplementi</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sped in spedizionieri %}
+            {% for zs in sped.sspedizioniere.all %}
+            <tr>
+                <td>{{ sped.nome }}</td>
+                <td>
+                    <strong>{{ zs.nome }}</strong><br>
+                    <small>Zone:</small><br>
+                    {% for z in zs.zona.all %}
+                        <span class="zona-tag">{{ z.nome }}</span>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% for scaglione in zs.zona_spedizioniere.all %}
+        <div style="font-size: 11px; margin-bottom: 4px; border-bottom: 1px solid #eee;">
+            {{ scaglione.min_weight|floatformat:2 }}-{{ scaglione.max_weight|floatformat:2 }}kg: <b>€{{ scaglione.price|floatformat:2 }}</b>
+            <br>
+            <small style="color: #666;">
+                Valido: {{ scaglione.valid_from|date:"d/m/Y" }}
+                {% if scaglione.valid_to %}
+                    a {{ scaglione.valid_to|date:"d/m/Y" }}
+                {% else %}
+                    (in corso)
+                {% endif %}
+            </small>
+        </div>
+    {% endfor %}
+                </td>
+                <td>
+    {% for supp in zs.supplementi.all %}
+        <div style="margin-bottom: 8px; border-bottom: 1px dotted #ccc; font-size: 11px;">
+            <strong>{{ supp.nome }}</strong>
+            {% if supp.applica_fuel %}
+                <span style="color: #d9534f; font-weight: bold;">[+ Fuel]</span>
+            {% endif %}
+            <br>
+
+            Tipo: {{ supp.calc_type }} | Valore: <b>{{ supp.valore|floatformat:2 }}</b>
+
+            {% if supp.diritto_minimo_euro > 0 %}
+                <br><small>Min: €{{ supp.diritto_minimo_euro|floatformat:2 }}</small>
+            {% endif %}
+
+            <br>
+            <small style="color: #666;">
+                {{ supp.valid_from|date:"d/m/y" }}
+                {% if supp.valid_to %} - {{ supp.valid_to|date:"d/m/y" }}{% else %} (attivo){% endif %}
+            </small>
+        </div>
+    {% empty %}
+        <span style="color: #999; font-size: 10px;">nessuno</span>
+    {% endfor %}
+</td>
+            </tr>
+            {% endfor %}
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
