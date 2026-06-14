@@ -58,8 +58,8 @@ class Zona_spedizioniere(models.Model):
         peso_attuale = Decimal(str(peso_reale))
 
         # DEBUG: Stampiamo esattamente cosa c'è nell'oggetto
-        print(f"--- divisore effettivo DEBUG ZONA: {self.nome} ---")
-        print(f"Valori DB -> Soglia: '{self.peso_soglia_light}', DivLight: '{self.divisore_volumetrico_light}'")
+        #print(f"--- divisore effettivo DEBUG ZONA: {self.nome} ---")
+        #print(f"Valori DB -> Soglia: '{self.peso_soglia_light}', DivLight: '{self.divisore_volumetrico_light}'")
 
         if self.peso_soglia_light:
             print(f'peso soglia light{self.peso_soglia_light}')

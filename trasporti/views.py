@@ -42,14 +42,27 @@ def simula_preventivi(spedizione, pacchi):
     print(ids_supp)
 
     id_zona_partenza = spedizione.da_zona_id
-    print(id_zona_partenza)
+    print(f'id zona partenza{id_zona_partenza}')
+    zone_candidata_arrivo = Zona_spedizioniere.objects.filter(
+        zona__id=id_zona_partenza)
+    print(f'zone_candidata_arrivo{zone_candidata_arrivo}')
     id_zona_arrivo = spedizione.a_zona_id
-    print(id_zona_arrivo)
+    print(f'id zona arrivo{id_zona_arrivo}')
+
+    # 1. Recupera la Zona geografica di arrivo dal DB
+    '''from trasporti.models import Zona
+    zona_arrivo = Zona.objects.get(id=id_zona_arrivo)
+    zona_arrivo_candidata = Zona_spedizioniere.objects.filter(
+        zona__id=zona_arrivo.id
+    ).order_by('-priorita').distinct()
+    print(f'zone_arrivo_candidata: {zona_arrivo_candidata}')'''
+    # 2. Cerca le configurazioni (Zona_spedizioniere) che contengono questa specifica zona
+    # Usiamo 'zona__in' per interrogarlo correttamente visto che è un ManyToMany
 
     zone_candidate = Zona_spedizioniere.objects.filter(
         Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
     ).distinct().select_related('spedizioniere')
-    print(zone_candidate)
+    print(f'QUESTE SONO LE ZONE CANDIDATE : {zone_candidate}')
 
     spedizionieri_map = {}
     for z in zone_candidate:
@@ -76,12 +89,12 @@ def simula_preventivi(spedizione, pacchi):
                 "dettaglio": dettaglio_pesi,
                 "ids_supplementi": ids_supp
             }
-            print(context_gls)
+            #print(context_gls)
             #qui passano tutti i supplementi flaggati
 
             #  qui è il fumetto verde del preventivo
             result_reale = GLSService._scaglioni(context_gls)
-            print(result_reale)
+            #print(result_reale)
 
             if result_reale:
                 preventivi.append({

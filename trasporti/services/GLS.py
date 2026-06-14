@@ -5,7 +5,7 @@ from django.db.models import Q
 from trasporti.services.base import TariffValidityService
 from trasporti.services.supplement_engine import SupplementEngine
 from trasporti.services.fuel_engine import FuelEngine
-from trasporti.services.XXXdetail_renderer import DetailRenderer
+from trasporti.services.detail_renderer import DetailRenderer
 
 class GLSService:
 
@@ -205,7 +205,7 @@ class GLSService:
         peso_tassabile = max(peso_reale, peso_volume)
 
         # DEBUG: assicuriamoci di vedere cosa ritorniamo
-        print(f"DEBUG_CALCOLO: Vol={volume_totale_cm3}, Div={divisore_finale}, PV={peso_volume}")
+        #print(f"DEBUG_CALCOLO: Vol={volume_totale_cm3}, Div={divisore_finale}, PV={peso_volume}")
 
         return {
             "peso_reale": peso_reale,
@@ -286,7 +286,7 @@ class GLSService:
         scaglione = scaglioni.filter(
             min_weight__lte=peso_tassabile
         ).filter(
-            Q(max_weight__gt=peso_tassabile) | Q(max_weight__isnull=True)
+            Q(max_weight__gte=peso_tassabile) | Q(max_weight__isnull=True)
         ).first()
 
         if not scaglione:
