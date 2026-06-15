@@ -29,12 +29,13 @@ class SupplementEngine:
             queryset.select_related('tipo_servizio').distinct(),
             spedizione.data
         )
+        print(f'supplementi validi nella zona?? {supplementi}')
 
 
         totale = Decimal("0")
         dettaglio = []
 
-        # 🟢 SERVIZI SELEZIONATI (non supplementi)
+
         servizi_selezionati_codici = []
 
         if hasattr(spedizione, "_servizi_simulati"):

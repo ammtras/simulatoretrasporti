@@ -10,44 +10,25 @@ from django.utils import timezone
 from decimal import Decimal
 from django.db.models import Q
 from django.contrib.auth.mixins import LoginRequiredMixin
+from datetime import timedelta
 
-
-def loggin(request):
-    if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
-        user = authenticate(request,username=username,password=password)
-        print('a')
-        if user is not None:
-            print('b')
-            login(request,user)
-            return redirect('crea_spedizione')
-            print('b2')
-        else:
-            print('c')
-            messages.success(request, ('Opppsss, qualcosa è andato storto'))
-            return redirect('login')
-    else:
-        print('url aperto')
-        return render(request, 'login.html', {})
-
-@login_required
-def loggout(request):
-    if request.method == "POST":
-        logout(request)
-        return redirect('login')
+def check_supplemento_applicable(ids_list, spedizione):
+    if sup.tipo_servizio.codice == "CONTR":
+        return spedizione.da_nazione == "IT" and spedizione.a_nazione == "IT"
+    return True
 
 def simula_preventivi(spedizione, pacchi):
     preventivi = []
 
     ids_supp = getattr(spedizione, '_supplementi_simulati', [])
-    print(ids_supp)
+    servizi_scelti_per_check = ids_supp
+    print(f'servizi_scelti_per_check {servizi_scelti_per_check}')
 
     id_zona_partenza = spedizione.da_zona_id
-    print(f'id zona partenza{id_zona_partenza}')
+    #print(f'id zona partenza{id_zona_partenza}')
     zone_candidata_arrivo = Zona_spedizioniere.objects.filter(
         zona__id=id_zona_partenza)
-    print(f'zone_candidata_arrivo{zone_candidata_arrivo}')
+    #print(f'zone_candidata_arrivo{zone_candidata_arrivo}')
     id_zona_arrivo = spedizione.a_zona_id
     print(f'id zona arrivo{id_zona_arrivo}')
 
@@ -64,7 +45,7 @@ def simula_preventivi(spedizione, pacchi):
     zone_candidate = Zona_spedizioniere.objects.filter(
         Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
     ).distinct().select_related('spedizioniere')
-    print(f'QUESTE SONO LE ZONE CANDIDATE : {zone_candidate}')
+    #print(f'QUESTE SONO LE ZONE CANDIDATE : {zone_candidate}')
 
     spedizionieri_map = {}
     for z in zone_candidate:
@@ -73,7 +54,7 @@ def simula_preventivi(spedizione, pacchi):
     for spedizioniere_id, zone_trovate in spedizionieri_map.items():
 
         z_spedizioniere = max(zone_trovate, key=lambda z: z.priorita)
-        print(z_spedizioniere)
+        print(f'z_spedizioniere{z_spedizioniere} (ZONA PRIORITARIA)')
 
         # SOLO GLS (o altri reali)
         if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
@@ -112,6 +93,31 @@ def simula_preventivi(spedizione, pacchi):
             p["best"] = (p["prezzo"] == min_price)
 
     return preventivi
+
+def loggin(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request,username=username,password=password)
+        print('a')
+        if user is not None:
+            print('b')
+            login(request,user)
+            return redirect('crea_spedizione')
+            print('b2')
+        else:
+            print('c')
+            messages.success(request, ('Opppsss, qualcosa è andato storto'))
+            return redirect('login')
+    else:
+        print('url aperto')
+        return render(request, 'login.html', {})
+
+@login_required
+def loggout(request):
+    if request.method == "POST":
+        logout(request)
+        return redirect('login')
 
 @login_required
 def crea_spedizione(request):
@@ -186,7 +192,14 @@ def crea_spedizione(request):
                 )
 
                 spedizione_temp._servizi_simulati = list(servizi_scelti)
+                print(f'servizi_scelti:{servizi_scelti}') #qui manca il fuel
+
                 spedizione_temp._supplementi_simulati = ids_simulati
+
+                supp_richiesti = Supplemento.objects.filter(id__in=ids_simulati)
+                print('supp_richiesti')
+                for s in supp_richiesti:
+                    print(f"{s.id} - {s.nome}")
 
                 preventivi = simula_preventivi(spedizione_temp, pacchi)
 
@@ -249,7 +262,44 @@ class spedizioni(LoginRequiredMixin,ListView):
     template_name = "spedizioni.html"
     context_object_name = "spedizioni"
     ordering = ["-data", "-id"]
-    paginate_by = 2
+
+    def EXget_paginate_by(self, queryset):
+        per_page = self.request.GET.get("per_page", 30)
+
+        try:
+            per_page = int(per_page)
+        except ValueError:
+            per_page = 30
+
+        # limite di sicurezza
+        if per_page not in [10, 30, 50, 100]:
+            per_page = 30
+
+        return per_page
+
+    def get_paginate_by(self, queryset):
+        valori_validi = [4, 5, 10, 30, 50, 100]
+
+        profilo, created = Profilo.objects.get_or_create(
+            user=self.request.user
+        )
+
+        per_page = self.request.GET.get("per_page")
+
+        if per_page:
+            try:
+                per_page = int(per_page)
+            except ValueError:
+                per_page = profilo.righe_per_pagina
+
+            if per_page in valori_validi:
+                profilo.righe_per_pagina = per_page
+                profilo.save(update_fields=["righe_per_pagina"])
+                return per_page
+
+        return profilo.righe_per_pagina
+
+
 
     def get_queryset(self):
         # 1. Ottieni il queryset base
@@ -257,8 +307,11 @@ class spedizioni(LoginRequiredMixin,ListView):
 
         # 2. Leggi i parametri dal form
         q = self.request.GET.get('q')
+        periodo = self.request.GET.get("periodo")
+        oggi = timezone.localdate()
         data_da = self.request.GET.get('data_da')
         data_a = self.request.GET.get('data_a')
+
 
 
         # 3. Filtra il queryset
@@ -268,6 +321,40 @@ class spedizioni(LoginRequiredMixin,ListView):
                 Q(da_cliente_citta__icontains=q) |
                 Q(a_cliente_citta__icontains=q)
             )
+
+
+
+        if periodo == "oggi":
+            data_da = oggi
+            data_a = oggi
+
+        elif periodo == "ieri":
+            ieri = oggi - timedelta(days=1)
+            data_da = ieri
+            data_a = ieri
+
+        elif periodo == "settimana":
+            data_da = oggi - timedelta(days=oggi.weekday())
+            data_a = oggi
+
+        elif periodo == "settimana_scorsa":
+            inizio_settimana_corrente = oggi - timedelta(days=oggi.weekday())
+            data_da = inizio_settimana_corrente - timedelta(days=7)
+            data_a = inizio_settimana_corrente - timedelta(days=1)
+
+        elif periodo == "mese":
+            data_da = oggi.replace(day=1)
+            data_a = oggi
+
+        elif periodo == "mese_scorso":
+            primo_giorno_mese_corrente = oggi.replace(day=1)
+            ultimo_giorno_mese_scorso = primo_giorno_mese_corrente - timedelta(days=1)
+            data_da = ultimo_giorno_mese_scorso.replace(day=1)
+            data_a = ultimo_giorno_mese_scorso
+
+        elif periodo == "anno":
+            data_da = oggi.replace(month=1, day=1)
+            data_a = oggi
 
         if data_da:
             queryset = queryset.filter(data__gte=data_da)

@@ -26,10 +26,10 @@
     <table border="1">
         <thead>
             <tr>
-                <th>Altezza</th>
-                <th>Larghezza</th>
-                <th>Profondità</th>
-                <th>Peso</th>
+                <th>Peso (Kg)</th>
+                <th>Larghezza (cm)</th>
+                <th>Profondità (cm)</th>
+                <th>Altezza (cm) </th>
                 <th>Elimina</th>
             </tr>
         </thead>
@@ -37,15 +37,16 @@
         <tbody>
         {% for f in formset %}
             <tr>
-                <td>{{ f.altezza_cm }}</td>
+                <td>{{ f.peso_kg }}</td>
                 <td>{{ f.larghezza_cm }}</td>
                 <td>{{ f.profondita_cm }}</td>
-                <td>{{ f.peso_kg }}</td>
+                <td>{{ f.altezza_cm }}</td>
                 <td>{{ f.DELETE }}</td>
             </tr>
         {% endfor %}
         </tbody>
     </table>
+
 
 
     <button type="submit" name="action" value="simulate">
@@ -74,7 +75,7 @@
 
         {% if p.dettaglio.items %}
             {% for riga in p.dettaglio.items %}
-                <strong>{{ riga.label }}:</strong> {{ riga.value|safe }}<br>
+                <strong>{{ riga.label|safe }}:</strong> {{ riga.value|safe }}<br>
             {% endfor %}
         {% else %}
             <strong>Peso reale:</strong> {{ p.dettaglio.peso_reale|floatformat:2 }} kg<br>

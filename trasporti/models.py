@@ -1,9 +1,23 @@
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
+class Profilo(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    righe_per_pagina = models.IntegerField(default=30)
 
+    def __str__(self):
+        return self.user.username
 
+@receiver(post_save, sender=User)
+def crea_o_aggiorna_profilo(sender, instance, created, **kwargs):
+    if created:
+        Profilo.objects.create(user=instance)
+    else:
+        Profilo.objects.get_or_create(user=instance)
 
 class Zona(models.Model):
     nome = models.CharField(max_length=200)
@@ -12,7 +26,6 @@ class Zona(models.Model):
 
     class Meta:
         verbose_name_plural = 'Zone'
-
 
 class Spedizioniere(models.Model):
 
@@ -33,8 +46,6 @@ class Spedizioniere(models.Model):
     class Meta:
         verbose_name_plural = "Spedizionieri"
 
-
-#zona tariffazione spedizioniere
 class Zona_spedizioniere(models.Model):
     nome = models.CharField(max_length=200, null=True, blank=True)
 
@@ -53,9 +64,9 @@ class Zona_spedizioniere(models.Model):
     peso_minimo_fatturabile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     contrassegno_allowed = models.BooleanField(default=False)
 
-    def get_divisore_effettivo(self, peso_reale,peso_volume):
+    def XXXget_divisore_effettivo(self, peso_reale,peso_volume):
         # Converte in Decimal per sicurezza
-        peso_attuale = Decimal(str(peso_reale))
+        peso_tassabile_temp = Decimal(str(peso_reale))
 
         # DEBUG: Stampiamo esattamente cosa c'è nell'oggetto
         #print(f"--- divisore effettivo DEBUG ZONA: {self.nome} ---")
@@ -70,15 +81,54 @@ class Zona_spedizioniere(models.Model):
 
         # Se la zona NON deve avere il divisore light, assicurati che nel DB siano NULL
         if not soglia or soglia <= 0 or not divisore_light or divisore_light <= 0:
-            #print("-> Esito: Logica light NON applicabile (valori NULL o <=0)")
+            print("-> Esito: Logica light NON applicabile (valori NULL o <=0)")
             return self.divisore_volumetrico
 
-        if peso_attuale < soglia:
-            #print(f"-> Esito: Applico Divisore LIGHT ({divisore_light}) perché {peso_attuale} < {soglia}")
+        if peso_tassabile_temp < soglia:
+            print(f"-> Esito: Applico Divisore LIGHT ({divisore_light}) perché {peso_tassabile_temp} < {soglia}")
             return divisore_light
 
-        #print(f"-> Esito: Applico Divisore STANDARD ({self.divisore_volumetrico})")
+        print(f"-> Esito: Applico Divisore STANDARD ({self.divisore_volumetrico})")
         return self.divisore_volumetrico
+
+    from decimal import Decimal
+
+    def get_divisore_effettivo(self, peso_reale, volume_totale_cm3):
+        peso_reale = Decimal(str(peso_reale))
+        divisore_standard = Decimal(str(self.divisore_volumetrico))
+        peso_volume = Decimal(str(volume_totale_cm3))/self.divisore_volumetrico
+        print(f'Function get_divisore_effettivo')
+        print(peso_volume)
+        soglia = Decimal(str(self.peso_soglia_light)) if self.peso_soglia_light else None
+        divisore_light = (Decimal(str(self.divisore_volumetrico_light)) if self.divisore_volumetrico_light else None)
+
+        # Se la logica light non è configurata
+        if not soglia or soglia <= 0 or not divisore_light or divisore_light <= 0:
+            print(f'1 divisore_standard {divisore_standard} ')
+            return divisore_standard
+
+
+        # ERRORE l'errore è quiii'
+        peso_volumetrico_light = volume_totale_cm3 / divisore_light
+        print(f' peso_volumetrico_light {peso_volumetrico_light}')
+
+        #peso_tassabile_light = max(peso_reale, peso_volumetrico_light)
+        #print(peso_tassabile_light)
+        print(f' soglia {soglia}')
+
+        if max(peso_volumetrico_light, peso_reale) < soglia:
+            print(f'2  max [pvl  {peso_volumetrico_light} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
+            return divisore_light
+
+        if peso_volumetrico_light > soglia:
+            print('3')
+            return divisore_standard
+
+        else:
+            print('4 ??riapplico lo standard')
+            return divisore_standard
+
+
 
     def __str__(self):
         # Uniamo i nomi di tutte le zone associate (es: "Italia, Spagna")
@@ -99,7 +149,6 @@ class TipoServizio(models.Model):
     class Meta:
         verbose_name_plural = "Mappatura Supplementi (Tipo Servizi)"
 
-
 class MappaturaZonaTariffaria(models.Model):
     stato_partenza = models.CharField(max_length=100, help_text="Es: Italia")
     stato_destinazione = models.CharField(max_length=100, help_text="Es: Spagna, Svizzera, Italia")
@@ -112,6 +161,7 @@ class MappaturaZonaTariffaria(models.Model):
 
     def __str__(self):
         return f"{self.stato_partenza} ➡️ {self.stato_destinazione} = {self.zona_corrispondente.nome}"
+
 class Spedizione(models.Model):
     data = models.DateField(default=timezone.now)
     da_cliente_citta = models.CharField(max_length=200, null=True, blank=True)
@@ -176,7 +226,6 @@ class OverflowTariff(models.Model):
 
     class Meta:
         verbose_name_plural = "Tariffe extra soglia (non in scaglioni)"
-
 
 class Supplemento(models.Model):
 

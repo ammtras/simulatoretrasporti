@@ -16,6 +16,7 @@
     }
     .debug-table th { background-color: #f2f2f2; }
     .zona-tag { background: #eee; padding: 2px 4px; border: 1px solid #bbb; margin-right: 3px; display: inline-block; }
+
 </style>
 
 
@@ -26,150 +27,256 @@
     +
 </a>
 <h1>Lista Spedizioni salvate</h1>
-<form method="GET" action="." class="bg-light p-4 rounded shadow-sm border mb-4">
-    <div class="row g-3 align-items-end">
+<form method="GET" action="." class="bg-light p-3 rounded shadow-sm border mb-4">
 
-        <div class="col-12 col-md-3">
-            <label class="form-label small fw-bold">Ricerca libera su "cliente città" ..</label>
-            <input type="text" name="q" class="form-control" placeholder="Scrivi qui..." value="{{ request.GET.q }}">
+    <div class="d-flex flex-wrap align-items-end gap-3">
+
+        <div>
+            <label class="form-label small fw-bold mb-1">
+                Ricerca
+            </label>
+            <input type="text"
+                   name="q"
+                   class="form-control"
+                   style="width:250px"
+                   placeholder="Cliente città..."
+                   value="{{ request.GET.q }}">
         </div>
 
-        <div class="col-6 col-md-2">
-            <label class="form-label small fw-bold">Data Da</label>
-            <input type="date" name="data_da" class="form-control" value="{{ request.GET.data_da }}">
+        <div>
+            <label class="form-label small fw-bold mb-1">
+                Da
+            </label>
+            <input type="date"
+                   name="data_da"
+                   class="form-control"
+                   value="{{ request.GET.data_da }}">
         </div>
 
-        <div class="col-6 col-md-2">
-            <label class="form-label small fw-bold">Data A</label>
-            <input type="date" name="data_a" class="form-control" value="{{ request.GET.data_a }}">
+        <div>
+            <label class="form-label small fw-bold mb-1">
+                A
+            </label>
+            <input type="date"
+                   name="data_a"
+                   class="form-control"
+                   value="{{ request.GET.data_a }}">
         </div>
 
-        <div class="col-12 col-md-3">
-            <label class="form-label small fw-bold">Trasportatore</label>
-            <select name="trasportatore" class="form-select">
+        <div>
+            <label class="form-label small fw-bold mb-1">
+                Periodo
+            </label>
+            <select name="periodo"
+                    class="form-select">
+
                 <option value="">Tutti</option>
-                {% for t in trasportatori %}
-                    <option value="{{ t.id }}" {% if request.GET.trasportatore == t.id|stringformat:"s" %}selected{% endif %}>
-                        {{ t.nome }}
-                    </option>
-                {% endfor %}
+                <option value="oggi" {% if request.GET.periodo == "oggi" %}selected{% endif %}>Oggi</option>
+                <option value="ieri" {% if request.GET.periodo == "ieri" %}selected{% endif %}>Ieri</option>
+                <option value="settimana" {% if request.GET.periodo == "settimana" %}selected{% endif %}>Questa settimana</option>
+                <option value="settimana_scorsa" {% if request.GET.periodo == "settimana_scorsa" %}selected{% endif %}>Settimana scorsa</option>
+                <option value="mese" {% if request.GET.periodo == "mese" %}selected{% endif %}>Questo mese</option>
+                <option value="mese_scorso" {% if request.GET.periodo == "mese_scorso" %}selected{% endif %}>Mese scorso</option>
+                <option value="anno" {% if request.GET.periodo == "anno" %}selected{% endif %}>Quest'anno</option>
+
             </select>
         </div>
 
-        <div class="col-12 col-md-2 d-flex gap-2">
-            <button type="submit" class="btn btn-primary w-100">Filtra</button>
-            <a href="?" class="btn btn-outline-secondary w-100">Annulla Filtri</a>
+        <div>
+            <label class="form-label small fw-bold mb-1">
+                Trasportatore
+            </label>
+
+            <select name="trasportatore" class="form-select">
+                <option value="">Tutti</option>
+
+                {% for t in trasportatori %}
+                    <option value="{{ t.id }}"
+                            {% if request.GET.trasportatore == t.id|stringformat:"s" %}selected{% endif %}>
+                        {{ t.nome }}
+                    </option>
+                {% endfor %}
+
+            </select>
         </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                Filtra
+            </button>
+
+            <a href="{% url 'spedizioni' %}"
+               class="btn btn-outline-secondary">
+                Azzera Filtri
+            </a>
+        </div>
+
     </div>
+
 </form>
 <table class="debug-table">
     <thead>
-        <tr>
+    <tr>
 
-            <th>Dettaglio Spedizione</th>
-            <th>Dettaglio Colli misure e peso reale</th>
-            <th>Dettaglio calcolo preventivo</th>
-            <th>Preventivo (totale imponibile)</th>
+        <th>Dettaglio Spedizione</th>
+        <th>Dettaglio Colli misure e peso reale</th>
+        <th>Dettaglio calcolo preventivo</th>
+        <th>Preventivo (totale imponibile)</th>
 
 
-        </tr>
+    </tr>
     </thead>
 
     <tbody>
-        {% for s in spedizioni %}
-            <tr style="background:#f9f9f9;">
+    {% for s in spedizioni %}
+    <tr style="background:#f9f9f9;">
 
-                <td> {{ s.data|date:"d/m/Y" }} <br>
-                     da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br>
-                     da {{ s.da_zona }} a {{ s.a_zona }} <br>
-                      <br>
-                    contrassegno € {{s.contrassegno_euro}}<br>
-                    assicurazione € {{s.assicurazione_euro}}<br>
-                    {{s.trasportatore_scelto}}
-
-
+        <td> {{ s.data|date:"d/m/Y" }} <br>
+            da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br>
+            da {{ s.da_zona }} a {{ s.a_zona }} <br>
+            <br>
+            contrassegno € {{s.contrassegno_euro}}<br>
+            assicurazione € {{s.assicurazione_euro}}<br>
+            {{s.trasportatore_scelto}}
 
 
+        </td>
+        <td>totale colli: {% if s.pacchi.all.count %}
+            {{ s.pacchi.count }}
+            {% else %}
+            0
+            {% endif %} <br>
+            {% if s.pacchi.all %}
+            {% for pacco in s.pacchi.all %}
+            ({{pacco}})<br>
+            {% endfor %}
+            {% endif %}
+        </td>
 
-                </td>
-                <td>totale colli: {% if s.pacchi.all.count %}
-                        {{ s.pacchi.count }}
-                    {% else %}
-                        0
-                    {% endif %} <br>
-                    {% if s.pacchi.all %}
-                    {% for pacco in s.pacchi.all %}
-                    ({{pacco}})<br>
-                    {% endfor %}
-                    {% endif %}
-                </td>
-
-              <td>
-    {% if s.dettaglio.items %}
-        {% for riga in s.dettaglio.items %}
+        <td>
+            {% if s.dettaglio.items %}
+            {% for riga in s.dettaglio.items %}
             {% if not forloop.last %} {% if riga.is_total %}
-                    <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
-                    <span style="font-size: 1.1em; color: #2c3e50;">
+            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
+            <span style="font-size: 1.1em; color: #2c3e50;">
                         <strong>{{ riga.label }}: {{ riga.value|safe }}</strong>
                     </span>
-                {% else %}
-                    <strong>{{ riga.label }}:</strong>
-                    {% if riga.is_html %}{{ riga.value|safe }}{% else %}{{ riga.value|safe }}{% endif %}
-                    <br>
-                {% endif %}
+            {% else %}
+            <strong>{{ riga.label }}:</strong>
+            {% if riga.is_html %}{{ riga.value|safe }}{% else %}{{ riga.value|safe }}{% endif %}
+            <br>
             {% endif %}
-        {% endfor %}
-    {% else %}
-        <span style="color: #999; font-style: italic;">Dettaglio non disponibile</span>
-    {% endif %}
+            {% endif %}
+            {% endfor %}
+            {% else %}
+            <span style="color: #999; font-style: italic;">Dettaglio non disponibile</span>
+            {% endif %}
 
 
+        </td>
+
+        <td>
+            {% if s.dettaglio.items %}
+            {% with ultimo=s.dettaglio.items|last %}
+            {{ ultimo.value|safe }}
+            {% endwith %}
+            {% endif %}
+        </td>
+
+        </td></td>
+
+    </tr>
 
 
-</td>
-
-<td>
-    {% if s.dettaglio.items %}
-        {% with ultimo=s.dettaglio.items|last %}
-                {{ ultimo.value|safe }}
-        {% endwith %}
-    {% endif %}
-</td>
-
-</td></td>
-
-            </tr>
-
-
-
-        {% empty %}
-            <tr>
-                <td colspan="8">Nessuna spedizione trovata</td>
-            </tr>
-        {% endfor %}
+    {% empty %}
+    <tr>
+        <td colspan="8">Nessuna spedizione trovata</td>
+    </tr>
+    {% endfor %}
     </tbody>
 </table>
-{% if is_paginated %}
+
+
+<div class="d-flex justify-content-end align-items-center mb-3">
+    <span class="text-muted me-auto">
+    Totale spedizioni: {{ page_obj.paginator.count }}
+</span>
+    <form method="get" class="d-flex align-items-center gap-2">
+
+        {% for key,value in request.GET.items %}
+        {% if key != 'per_page' and key != 'page' %}
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
+        {% endif %}
+        {% endfor %}
+
+        <span class="text-muted small">Mostra</span>
+
+        <select name="per_page"
+                class="form-select form-select-sm w-auto"
+                onchange="this.form.submit()">
+            <option value="4" {% if page_obj.paginator.per_page == 4 %}selected{% endif %}>4</option>
+            <option value="5" {% if page_obj.paginator.per_page == 5 %}selected{% endif %}>5</option>
+            <option value="10" {% if page_obj.paginator.per_page == 10 %}selected{% endif %}>10</option>
+            <option value="30" {% if page_obj.paginator.per_page == 30 %}selected{% endif %}>30</option>
+            <option value="50" {% if page_obj.paginator.per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if page_obj.paginator.per_page == 100 %}selected{% endif %}>100</option>
+        </select>
+
+        <span class="text-muted small">spedizioni per pagina</span>
+
+    </form>
+</div>
+
 <nav aria-label="Navigazione pagine" class="mt-4">
     <ul class="pagination justify-content-center">
-        {% if page_obj.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Precedente</a>
-            </li>
+
+        <!-- Previous -->
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+            {% if page_obj.has_previous %}
+            <a class="page-link"
+               href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                Precedente
+            </a>
+            {% else %}
+            <span class="page-link">Precedente</span>
+            {% endif %}
+        </li>
+
+        <!-- Numeri pagina -->
+        {% for num in page_obj.paginator.page_range %}
+
+        {% if num == page_obj.number %}
+        <li class="page-item active">
+                    <span class="page-link">
+                        {{ num }}
+                        <span class="visually-hidden">(current)</span>
+                    </span>
+        </li>
+        {% else %}
+        <li class="page-item">
+            <a class="page-link"
+               href="?page={{ num }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                {{ num }}
+            </a>
+        </li>
         {% endif %}
 
-        <li class="page-item active"><span class="page-link">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span></li>
+        {% endfor %}
 
-        {% if page_obj.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Successiva</a>
-            </li>
-        {% endif %}
+        <!-- Next -->
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+            {% if page_obj.has_next %}
+            <a class="page-link"
+               href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                Successiva
+            </a>
+            {% else %}
+            <span class="page-link">Successiva</span>
+            {% endif %}
+        </li>
+
     </ul>
 </nav>
-{% endif %}
-
-
 
 
 {% endblock %}
