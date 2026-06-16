@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+class Prova(models.Model):
+    test = models.PositiveIntegerField(default=1)
 class Profilo(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     righe_per_pagina = models.PositiveIntegerField(default=30)
