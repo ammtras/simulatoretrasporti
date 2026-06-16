@@ -5,12 +5,12 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.generic import ListView
-from trasporti.services.GLS import GLSService
 from django.utils import timezone
 from decimal import Decimal
 from django.db.models import Q
 from django.contrib.auth.mixins import LoginRequiredMixin
 from datetime import timedelta
+from trasporti.services.calcolatore import CalcolatriceService
 
 def check_supplemento_applicable(ids_list, spedizione):
     if sup.tipo_servizio.codice == "CONTR":
@@ -24,28 +24,13 @@ def simula_preventivi(spedizione, pacchi):
     servizi_scelti_per_check = ids_supp
     print(f'servizi_scelti_per_check {servizi_scelti_per_check}')
 
+    ## inizio funzione trova zona spedizioniere ovvero le possibili tariffe applicabili
     id_zona_partenza = spedizione.da_zona_id
-    #print(f'id zona partenza{id_zona_partenza}')
-    zone_candidata_arrivo = Zona_spedizioniere.objects.filter(
-        zona__id=id_zona_partenza)
-    #print(f'zone_candidata_arrivo{zone_candidata_arrivo}')
     id_zona_arrivo = spedizione.a_zona_id
-    print(f'id zona arrivo{id_zona_arrivo}')
-
-    # 1. Recupera la Zona geografica di arrivo dal DB
-    '''from trasporti.models import Zona
-    zona_arrivo = Zona.objects.get(id=id_zona_arrivo)
-    zona_arrivo_candidata = Zona_spedizioniere.objects.filter(
-        zona__id=zona_arrivo.id
-    ).order_by('-priorita').distinct()
-    print(f'zone_arrivo_candidata: {zona_arrivo_candidata}')'''
-    # 2. Cerca le configurazioni (Zona_spedizioniere) che contengono questa specifica zona
-    # Usiamo 'zona__in' per interrogarlo correttamente visto che è un ManyToMany
 
     zone_candidate = Zona_spedizioniere.objects.filter(
         Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
     ).distinct().select_related('spedizioniere')
-    #print(f'QUESTE SONO LE ZONE CANDIDATE : {zone_candidate}')
 
     spedizionieri_map = {}
     for z in zone_candidate:
@@ -59,7 +44,7 @@ def simula_preventivi(spedizione, pacchi):
         # SOLO GLS (o altri reali)
         if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
 
-            dettaglio_pesi = GLSService.dettaglio_calcolo_preventivo(
+            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
                 pacchi,
                 z_spedizioniere
             )
@@ -76,7 +61,7 @@ def simula_preventivi(spedizione, pacchi):
             #qui passano tutti i supplementi flaggati
 
             #  qui è il fumetto verde del preventivo
-            result_reale = GLSService._scaglioni(context_gls)
+            result_reale = CalcolatriceService._scaglioni(context_gls)
             #print(result_reale)
 
             if result_reale:
@@ -84,7 +69,8 @@ def simula_preventivi(spedizione, pacchi):
                     "zona_tariffazione_id": z_spedizioniere.id,
                     "trasportatore": z_spedizioniere.spedizioniere.nome,
                     "prezzo": result_reale["prezzo"],
-                    "dettaglio": result_reale["dettaglio"]
+                    "dettaglio": result_reale["dettaglio"],
+                    
                 })
 
     if preventivi:
@@ -377,7 +363,7 @@ class spedizioni(LoginRequiredMixin,ListView):
 
         context['trasportatori'] = Spedizioniere.objects.all().order_by('nome')
 
-        # 3. Il tuo codice per il calcolo dinamico (GLSService)
+        # 3. Il tuo codice per il calcolo dinamico (CalcolatriceService)
         # Ora il ciclo opererà SOLO sugli elementi filtrati
         for s in context["spedizioni"]:
             if s.trasportatore_scelto and s.trasportatore_scelto.nome.upper() == "GLS":
@@ -387,13 +373,15 @@ class spedizioni(LoginRequiredMixin,ListView):
                      "peso_kg": p.peso_kg}
                     for p in s.pacchi.all()
                 ]
-                result = GLSService.calcola(s, pacchi_list)
+                result = CalcolatriceService.calcola(s, pacchi_list)
                 if result:
                     s.dettaglio = result.get("dettaglio", {})
                     s.valore_preventivo_aggiornato = result.get("prezzo")
 
         return context
 
+
+#vedere di rinominare, qui è un "get zona_spedizioniere e supplementi"
 @login_required
 def controllo_tariffe(request):
     # Carichiamo tutto in un colpo solo per efficienza

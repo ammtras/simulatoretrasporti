@@ -7,7 +7,7 @@ from django.dispatch import receiver
 
 class Profilo(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    righe_per_pagina = models.IntegerField(default=30)
+    righe_per_pagina = models.PositiveIntegerField(default=30)
 
     def __str__(self):
         return self.user.username
@@ -57,39 +57,13 @@ class Zona_spedizioniere(models.Model):
         related_name="zone_spedizioniere",
         help_text="Seleziona le zone che sono servite questa tariffa"
     )
-    priorita = models.IntegerField(default=0, help_text="Più alto è il numero, più è specifica la zona.")
-    divisore_volumetrico = models.IntegerField(default=5000)
-    divisore_volumetrico_light = models.IntegerField(null=True, blank=True)
+    priorita = models.PositiveIntegerField(default=0, help_text="Più alto è il numero, più è specifica la zona.")
+    divisore_volumetrico = models.PositiveIntegerField(default=5000)
+    divisore_volumetrico_light = models.PositiveIntegerField(null=True, blank=True)
     peso_soglia_light = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     peso_minimo_fatturabile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     contrassegno_allowed = models.BooleanField(default=False)
 
-    def XXXget_divisore_effettivo(self, peso_reale,peso_volume):
-        # Converte in Decimal per sicurezza
-        peso_tassabile_temp = Decimal(str(peso_reale))
-
-        # DEBUG: Stampiamo esattamente cosa c'è nell'oggetto
-        #print(f"--- divisore effettivo DEBUG ZONA: {self.nome} ---")
-        #print(f"Valori DB -> Soglia: '{self.peso_soglia_light}', DivLight: '{self.divisore_volumetrico_light}'")
-
-        if self.peso_soglia_light:
-            print(f'peso soglia light{self.peso_soglia_light}')
-
-        soglia = self.peso_soglia_light if self.peso_soglia_light else None
-        print(f'soglia{soglia}')
-        divisore_light = Decimal(str(self.divisore_volumetrico_light)) if self.divisore_volumetrico_light else None
-
-        # Se la zona NON deve avere il divisore light, assicurati che nel DB siano NULL
-        if not soglia or soglia <= 0 or not divisore_light or divisore_light <= 0:
-            print("-> Esito: Logica light NON applicabile (valori NULL o <=0)")
-            return self.divisore_volumetrico
-
-        if peso_tassabile_temp < soglia:
-            print(f"-> Esito: Applico Divisore LIGHT ({divisore_light}) perché {peso_tassabile_temp} < {soglia}")
-            return divisore_light
-
-        print(f"-> Esito: Applico Divisore STANDARD ({self.divisore_volumetrico})")
-        return self.divisore_volumetrico
 
     from decimal import Decimal
 
@@ -137,6 +111,23 @@ class Zona_spedizioniere(models.Model):
 
     class Meta:
         verbose_name_plural = "Zone Tariffazione Spedizionieri"
+
+class Tariffa_colli(models.Model):
+    spedizioniere = models.ForeignKey(Spedizioniere, on_delete=models.CASCADE, null=True, related_name='spedizioniere_Tc')
+    zona_spedizioniere = models.ForeignKey(Zona_spedizioniere, on_delete=models.CASCADE, related_name='zona_spedizioniere_Tc')
+    valid_from = models.DateField(default=timezone.now)
+    valid_to = models.DateField(null=True, blank=True)
+    colli_quantità_da = models.PositiveIntegerField(default=0)
+    colli_quantità_a = models.PositiveIntegerField(default=0)
+    costo_euro = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f'Tariffa colli {self.spedizioniere} | {self.zona_spedizioniere.nome} | da {self.colli_quantità_da} a {self.colli_quantità_a}'
+
+    class Meta:
+        verbose_name_plural = "Tariffe a collo"
+
+
 
 class TipoServizio(models.Model):
     # Un codice univoco che userai nel codice Python

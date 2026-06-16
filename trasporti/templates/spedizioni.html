@@ -121,7 +121,8 @@
         <th>Dettaglio Spedizione</th>
         <th>Dettaglio Colli misure e peso reale</th>
         <th>Dettaglio calcolo preventivo</th>
-        <th>Preventivo (totale imponibile)</th>
+        <th>Preventivo (totale imponibile senza fuel)</th>
+        <th>Preventivo (totale imponibile con fuel)</th>
 
 
     </tr>
@@ -174,13 +175,11 @@
 
 
         </td>
-
         <td>
-            {% if s.dettaglio.items %}
-            {% with ultimo=s.dettaglio.items|last %}
-            {{ ultimo.value|safe }}
-            {% endwith %}
-            {% endif %}
+            {{ totale_imponibile_senza_fuel|floatformat:2 }}
+        </td>
+        <td>
+            {{ totale_imponibile_con_fuel|floatformat:2 }}
         </td>
 
         </td></td>

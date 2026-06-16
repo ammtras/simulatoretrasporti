@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 
-class DetailRenderer:
+class DetailRendererService:
 
     @staticmethod
     def render(d: dict):
@@ -26,7 +26,7 @@ class DetailRenderer:
 
             else:
                 # Sostituito 'v' con 'obj'
-                if DetailRenderer._is_valid(v=obj):
+                if DetailRendererService._is_valid(v=obj):
                     items.append({
                         "label": prefix.strip(": "),
                         "value": obj  # <--- FIX QUI: prima era 'v'
