@@ -5,7 +5,7 @@ from django.db.models import Q
 from trasporti.services.base import TariffValidityService
 from trasporti.services.supplement_engine import SupplementEngine
 from trasporti.services.fuel_engine import FuelEngine
-from trasporti.services.detail_renderer import DetailRenderer
+from trasporti.services.detail_renderer import DetailRendererService
 
 class GLSService:
 
@@ -13,7 +13,7 @@ class GLSService:
     # 🟢 ZONA
     # =========================
     @staticmethod
-    def get_zona_gls(spedizione):
+    def get_zona(spedizione):
         return getattr(spedizione, "zona_tariffazione_spedizioniere", None)
 
     # =========================
@@ -54,7 +54,7 @@ class GLSService:
     @staticmethod
     def calcola(spedizione, pacchi):
 
-        zona_gls = GLSService.get_zona_gls(spedizione)
+        zona_gls = GLSService.get_zona(spedizione)
 
         if not zona_gls:
             return {
@@ -175,6 +175,9 @@ class GLSService:
         costo_fuel_calcolato = fuel["totale"]
         prezzo_finale = pre_base + totale_supplementi_con_fuel + costo_fuel_calcolato + totale_supplementi_senza_fuel
         imponibile_senza_fuel = pre_base + totale_supplementi_con_fuel + totale_supplementi_senza_fuel
+        totale_imponibile_con_fuel = pre_base + totale_supplementi_con_fuel + totale_supplementi_senza_fuel + costo_fuel_calcolato
+        totale_imponibile_senza_fuel = pre_base + totale_supplementi_con_fuel + totale_supplementi_senza_fuel
+
 
         # 4. Preparazione output
         nome_scaglione_completo = str(scaglione)
@@ -226,9 +229,13 @@ class GLSService:
             {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>", "is_total": True, "is_html": True}
         ]
 
+        print(totale_imponibile_con_fuel)
+        print(totale_imponibile_senza_fuel)
         return {
             "prezzo": prezzo_finale,
-            "dettaglio": {"items": items_ordinati}
+            "dettaglio": {"items": items_ordinati},
+            "totale_imponibile_con_fuel": totale_imponibile_con_fuel,
+            "totale_imponibile_senza_fuel": totale_imponibile_senza_fuel,
         }
 
     @staticmethod
