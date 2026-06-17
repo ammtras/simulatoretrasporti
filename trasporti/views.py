@@ -17,7 +17,10 @@ def check_supplemento_applicable(ids_list, spedizione):
         return spedizione.da_nazione == "IT" and spedizione.a_nazione == "IT"
     return True
 
-def simula_preventivi(spedizione, pacchi):
+
+
+# non cancellare è la mia funzione originale
+def FUNZIA_SOLO_GLS_simula_preventivi(spedizione, pacchi):
     preventivi = []
 
     ids_supp = getattr(spedizione, '_supplementi_simulati', [])
@@ -41,8 +44,12 @@ def simula_preventivi(spedizione, pacchi):
         z_spedizioniere = max(zone_trovate, key=lambda z: z.priorita)
         print(f'z_spedizioniere{z_spedizioniere} (ZONA PRIORITARIA)')
 
+        nome_spedizioniere = z_spedizioniere.spedizioniere.nome.upper()
+
+        if nome_spedizioniere == "GLS":
+
         # SOLO GLS (o altri reali)
-        if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
+        #if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
 
             dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
                 pacchi,
@@ -73,6 +80,41 @@ def simula_preventivi(spedizione, pacchi):
                     
                 })
 
+        elif nome_spedizioniere == "FEDEX":
+
+            # SOLO GLS (o altri reali)
+            # if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
+
+            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
+                pacchi,
+                z_spedizioniere
+            )
+
+            context_gls = {
+                "spedizione": spedizione,
+                "pacchi": pacchi,
+                "zona": z_spedizioniere,
+                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
+                "dettaglio": dettaglio_pesi,
+                "ids_supplementi": ids_supp
+            }
+            # print(context_gls)
+            # qui passano tutti i supplementi flaggati
+
+            #  qui è il fumetto verde del preventivo
+            result_reale = CalcolatriceService._a_collo(context_gls)
+            # print(result_reale)
+
+            if result_reale:
+                preventivi.append({
+                    "zona_tariffazione_id": z_spedizioniere.id,
+                    "trasportatore": z_spedizioniere.spedizioniere.nome,
+                    "prezzo": result_reale["prezzo"],
+                    "dettaglio": result_reale["dettaglio"],
+
+                })
+
+
     if preventivi:
         min_price = min(p["prezzo"] for p in preventivi)
         for p in preventivi:
@@ -80,23 +122,207 @@ def simula_preventivi(spedizione, pacchi):
 
     return preventivi
 
+
+def XXXsimula_preventivi(spedizione, pacchi):
+    preventivi = []
+
+    ids_supp = getattr(spedizione, '_supplementi_simulati', [])
+    servizi_scelti_per_check = ids_supp
+    print(f'servizi_scelti_per_check {servizi_scelti_per_check}')
+
+    ## inizio funzione trova zona spedizioniere ovvero le possibili tariffe applicabili
+    id_zona_partenza = spedizione.da_zona_id
+    id_zona_arrivo = spedizione.a_zona_id
+
+    zone_candidate = Zona_spedizioniere.objects.filter(
+        Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
+    ).distinct().select_related('spedizioniere')
+
+    spedizionieri_map = {}
+
+    for z in zone_candidate:
+        spedizionieri_map.setdefault(z.spedizioniere_id, []).append(z)
+
+    for spedizioniere_id, zone_trovate in spedizionieri_map.items():
+
+        # Trovo la priorità più alta per questo spedizioniere
+        priorita_massima = max(z.priorita for z in zone_trovate)
+
+        # Prendo TUTTE le tariffe con quella priorità
+        zone_prioritarie = [
+            z for z in zone_trovate
+            if z.priorita == priorita_massima
+        ]
+
+        for z_spedizioniere in zone_prioritarie:
+
+            print(f'z_spedizioniere {z_spedizioniere} (PRIORITÀ {z_spedizioniere.priorita})')
+
+            nome_spedizioniere = z_spedizioniere.spedizioniere.nome.upper()
+
+            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
+                pacchi,
+                z_spedizioniere
+            )
+
+            context_tariffa = {
+                "spedizione": spedizione,
+                "pacchi": pacchi,
+                "zona": z_spedizioniere,
+                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
+                "dettaglio": dettaglio_pesi,
+                "ids_supplementi": ids_supp
+            }
+
+            # Scelta motore tariffario
+            if nome_spedizioniere == "GLS":
+
+                result_reale = CalcolatriceService._scaglioni(
+                    context_tariffa
+                )
+
+            elif nome_spedizioniere == "FEDEX":
+
+                result_reale = CalcolatriceService._a_collo(
+                    context_tariffa
+                )
+
+            else:
+                continue
+
+            if result_reale:
+                preventivi.append({
+                    "zona_tariffazione_id": z_spedizioniere.id,
+                    "zona_tariffazione_nome": z_spedizioniere.nome,
+                    "trasportatore": z_spedizioniere.spedizioniere.nome,
+                    "prezzo": result_reale["prezzo"],
+                    "dettaglio": result_reale["dettaglio"],
+                })
+    if preventivi:
+        min_price = min(p["prezzo"] for p in preventivi)
+        for p in preventivi:
+            p["best"] = (p["prezzo"] == min_price)
+
+    return preventivi
+
+def simula_preventivi(spedizione, pacchi):
+    preventivi = []
+
+    ids_supp = getattr(spedizione, "_supplementi_simulati", [])
+    print(f"servizi_scelti_per_check {ids_supp}")
+
+    zone_tratta = [
+        spedizione.da_zona,
+        spedizione.a_zona,
+    ]
+
+    spedizionieri = Spedizioniere.objects.all().order_by("nome")
+    # INIZIO LE MODIFICHE ORA
+
+    for spedizioniere in spedizionieri:
+
+        zone_candidate = Zona_spedizioniere.objects.filter(
+            spedizioniere=spedizioniere,
+            zona__in=zone_tratta
+        ).distinct().select_related("spedizioniere")
+
+        if not zone_candidate.exists():
+            continue
+
+        priorita_massima = max(
+            z.priorita for z in zone_candidate
+        )
+
+        zone_prioritarie = [
+            z for z in zone_candidate
+            if z.priorita == priorita_massima
+        ]
+
+        for z_spedizioniere in zone_prioritarie:
+
+            print(
+                f"Spedizioniere: {spedizioniere.nome} | "
+                f"Zona tratta: {zone_tratta} | "
+                f"Tariffa: {z_spedizioniere.nome} | "
+                f"Priorità: {z_spedizioniere.priorita}"
+            )
+
+            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
+                pacchi,
+                z_spedizioniere
+            )
+
+            context_tariffa = {
+                "spedizione": spedizione,
+                "pacchi": pacchi,
+                "zona": z_spedizioniere,
+                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
+                "dettaglio": dettaglio_pesi,
+                "ids_supplementi": ids_supp,
+            }
+
+            '''nome_spedizioniere = spedizioniere.nome.upper().strip()
+
+            if nome_spedizioniere == "GLS":
+                result_reale = CalcolatriceService._scaglioni(
+                    context_tariffa
+                )
+
+            elif nome_spedizioniere == "FEDEX":
+                result_reale = CalcolatriceService._a_collo(
+                    context_tariffa
+                )
+
+            else:
+                continue'''
+
+            tipo_tariffazione = spedizioniere.tipo_tariffazione
+
+            if tipo_tariffazione == Spedizioniere.A_SCAGLIONI:
+                result_reale = CalcolatriceService._scaglioni(context_tariffa)
+
+            elif tipo_tariffazione == Spedizioniere.A_COLLO:
+                result_reale = CalcolatriceService._a_collo(context_tariffa)
+
+            else:
+                continue
+
+            if result_reale:
+                preventivi.append({
+                    "zona_tariffazione_id": z_spedizioniere.id,
+                    "zona_tariffazione_nome": z_spedizioniere.nome,
+                    "zone_tratta": str(zone_tratta),
+                    "trasportatore": spedizioniere.nome,
+                    "prezzo": result_reale["prezzo"],
+                    "dettaglio": result_reale["dettaglio"],
+                })
+
+    if preventivi:
+        min_price = min(p["prezzo"] for p in preventivi)
+
+        for p in preventivi:
+            p["best"] = p["prezzo"] == min_price
+
+    return preventivi
+
+
 def loggin(request):
     if request.method == 'POST':
         username = request.POST['username']
         password = request.POST['password']
         user = authenticate(request,username=username,password=password)
-        print('a')
+        #print('a')
         if user is not None:
-            print('b')
+            #print('b')
             login(request,user)
             return redirect('crea_spedizione')
-            print('b2')
+            #print('b2')
         else:
-            print('c')
+            #print('c')
             messages.success(request, ('Opppsss, qualcosa è andato storto'))
             return redirect('login')
     else:
-        print('url aperto')
+        #print('url aperto')
         return render(request, 'login.html', {})
 
 @login_required
@@ -107,6 +333,7 @@ def loggout(request):
 
 @login_required
 def crea_spedizione(request):
+    title = "Simulatore"
     preventivi = None
 
     supplementi_disponibili = Supplemento.objects.all()
@@ -182,6 +409,7 @@ def crea_spedizione(request):
 
                 spedizione_temp._supplementi_simulati = ids_simulati
 
+
                 supp_richiesti = Supplemento.objects.filter(id__in=ids_simulati)
                 print('supp_richiesti')
                 for s in supp_richiesti:
@@ -236,6 +464,7 @@ def crea_spedizione(request):
         formset = PaccoFormSet()
 
     return render(request, "crea_spedizione.html", {
+        "title":title,
         "form": form,
         "formset": formset,
         "preventivi": preventivi,
@@ -249,19 +478,6 @@ class spedizioni(LoginRequiredMixin,ListView):
     context_object_name = "spedizioni"
     ordering = ["-data", "-id"]
 
-    def EXget_paginate_by(self, queryset):
-        per_page = self.request.GET.get("per_page", 30)
-
-        try:
-            per_page = int(per_page)
-        except ValueError:
-            per_page = 30
-
-        # limite di sicurezza
-        if per_page not in [10, 30, 50, 100]:
-            per_page = 30
-
-        return per_page
 
     def get_paginate_by(self, queryset):
         valori_validi = [4, 5, 10, 30, 50, 100]
@@ -361,6 +577,8 @@ class spedizioni(LoginRequiredMixin,ListView):
         # Chiama il super per ottenere il queryset già filtrato!
         context = super().get_context_data(**kwargs)
 
+        context["title"] = "Spedizioni"
+
         context['trasportatori'] = Spedizioniere.objects.all().order_by('nome')
 
         # 3. Il tuo codice per il calcolo dinamico (CalcolatriceService)
@@ -384,6 +602,7 @@ class spedizioni(LoginRequiredMixin,ListView):
 #vedere di rinominare, qui è un "get zona_spedizioniere e supplementi"
 @login_required
 def controllo_tariffe(request):
+    title = "Controllo Tariffe"
     # Carichiamo tutto in un colpo solo per efficienza
 
     spedizionieri = Spedizioniere.objects.prefetch_related(
@@ -391,5 +610,5 @@ def controllo_tariffe(request):
         'sspedizioniere__supplementi',
     ).all()
 
-    return render(request, 'controllo_tariffe.html', {'spedizionieri': spedizionieri})
+    return render(request, 'controllo_tariffe.html', {'spedizionieri': spedizionieri,'title':title})
 

@@ -72,9 +72,9 @@ class Zona_spedizioniere(models.Model):
     def get_divisore_effettivo(self, peso_reale, volume_totale_cm3):
         peso_reale = Decimal(str(peso_reale))
         divisore_standard = Decimal(str(self.divisore_volumetrico))
-        peso_volume = Decimal(str(volume_totale_cm3))/self.divisore_volumetrico
+        peso_volume_standard = Decimal(str(volume_totale_cm3))/self.divisore_volumetrico
         print(f'Function get_divisore_effettivo')
-        print(peso_volume)
+        print(peso_volume_standard)
         soglia = Decimal(str(self.peso_soglia_light)) if self.peso_soglia_light else None
         divisore_light = (Decimal(str(self.divisore_volumetrico_light)) if self.divisore_volumetrico_light else None)
 
@@ -86,23 +86,31 @@ class Zona_spedizioniere(models.Model):
 
         # ERRORE l'errore è quiii'
         peso_volumetrico_light = volume_totale_cm3 / divisore_light
-        print(f' peso_volumetrico_light {peso_volumetrico_light}')
+        #print(f' peso_volumetrico_light {peso_volumetrico_light}')
 
-        #peso_tassabile_light = max(peso_reale, peso_volumetrico_light)
-        #print(peso_tassabile_light)
-        print(f' soglia {soglia}')
+
+        #print(f' soglia {soglia}')
 
         if max(peso_volumetrico_light, peso_reale) < soglia:
             print(f'2  max [pvl  {peso_volumetrico_light} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
+            print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
             return divisore_light
 
-        if peso_volumetrico_light > soglia:
+        # se il peso reale e il peso volume standard sono < soglia
+        elif max(peso_reale,peso_volume_standard) < soglia:
+            print(f'3  max [pvl  {peso_volume_standard} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
+            print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
+            return divisore_light
+
+        elif max(peso_reale,peso_volumetrico_light) > soglia:
             print('3')
+            print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
             return divisore_standard
 
         else:
             print('4 ??riapplico lo standard')
             return divisore_standard
+
 
 
 
