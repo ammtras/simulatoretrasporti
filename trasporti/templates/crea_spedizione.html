@@ -87,19 +87,24 @@
     </div>
 {% endif %}
 
-                <button type="submit"
+
+                <button
+                        type="submit"
                         name="action"
                         value="confirm"
                         formaction=""
-                        onclick="this.form.trasportatore.value='{{ p.trasportatore }}'; this.form.prezzo.value='{{ p.prezzo|floatformat:2 }}'">
+                        onclick="
+                        this.form.trasportatore.value='{{ p.trasportatore }}';
+                        this.form.prezzo.value='{{ p.prezzo|floatformat:2 }}';
+                        this.form.zona_tariffazione_id.value='{{ p.zona_tariffazione_id }}';">
                     Conferma preventivo e salva spedizione
                 </button>
-
             </li>
         {% endfor %}
     </ul>
     <input type="hidden" name="trasportatore">
     <input type="hidden" name="prezzo">
+    <input type="hidden" name="zona_tariffazione_id">
 {% endif %}
 
     <br>

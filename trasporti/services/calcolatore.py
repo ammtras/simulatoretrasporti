@@ -229,226 +229,8 @@ class CalcolatriceService:
         }
 
 
-    def XXX_a_collo(context):
-        spedizione = context["spedizione"]
-        pacchi = context["pacchi"]
-        zona_get = context["zona"]
-        peso_tassabile = context["peso_tassabile"]
-        dettaglio = context["dettaglio"]
-        ids_supplementi = context.get("ids_supplementi", [])
 
 
-        numero_colli = len(pacchi)
-        print(f'sono entrata nella funzione A COLLO : il totale colli della spedizione è {numero_colli}')
-
-        print(f"zona_get={zona_get}")
-        print(f"zona_get.id={zona_get.id}")
-
-        tariffe_colli = Tariffa_colli.objects.filter(
-            zona_spedizioniere=zona_get
-        )
-
-        print(tariffe_colli)
-        print(tariffe_colli.count())
-
-        # 1. Trovo tariffa a colli valida
-        tariffe_colli = Tariffa_colli.objects.filter(zona_spedizioniere=zona_get)
-        print(f'1 tariffa_collo : {tariffa_collo}')
-
-
-        # 1. Trovo tariffa a colli valida
-        tariffe_colli = TariffValidityService.filtra_validita(
-            Tariffa_colli.objects.filter(
-                zona_spedizioniere=zona_get,
-                spedizioniere=spedizione.trasportatore_scelto
-            ),
-            spedizione.data
-        ).order_by("colli_quantità_da")
-
-        tariffa_collo = tariffe_colli.filter(
-            colli_quantità_da__lte=numero_colli,
-            colli_quantità_a__gte=numero_colli
-        ).first()
-        print(f'2 tariffa_collo : {tariffa_collo}')
-
-        if not tariffa_collo:
-            return {
-                "prezzo": Decimal("0"),
-                "dettaglio": {
-                    "error": "no tariffa colli"
-                }
-            }
-
-        '''# 2. Prezzo base della fascia colli
-        pre_base = Decimal(str(tariffa_collo.costo_euro)) * Decimal(numero_colli)
-
-        # 3. Supplemento peso volume > 45 kg per singolo collo
-        divisore = Decimal(str(dettaglio.get("divisore", 1)))
-
-        supplemento_peso_volume = Decimal("0")
-        dettaglio_supp_peso_volume = []
-
-        for index, pacco in enumerate(pacchi, start=1):
-            altezza = Decimal(str(pacco.get("altezza_cm", 0)))
-            larghezza = Decimal(str(pacco.get("larghezza_cm", 0)))
-            profondita = Decimal(str(pacco.get("profondita_cm", 0)))
-
-            volume_cm3 = altezza * larghezza * profondita
-            peso_volume_collo = volume_cm3 / divisore
-
-            if peso_volume_collo > Decimal("45"):
-                supplemento_peso_volume += Decimal("5.00")
-                dettaglio_supp_peso_volume.append({
-                    "nome": f"Supplemento peso collo {index} > 45 kg",
-                    "costo": Decimal("5.00"),
-                    "peso_volume_collo": peso_volume_collo,
-                    "applica_fuel": False,
-                })
-
-        pre_base = pre_base + supplemento_peso_volume
-
-        # 4. Supplementi standard
-        supp = SupplementEngine.calcola(
-            spedizione,
-            pacchi,
-            pre_base,
-            zona_get,
-            ids_supplementi=ids_supplementi
-        )
-
-        supplementi_puliti = []
-        totale_supplementi_con_fuel = Decimal("0")
-        totale_supplementi_senza_fuel = Decimal("0")
-
-        for s in supp.get("dettaglio", []):
-            nome_supp = s.get("nome", "").lower()
-            costo_supp = Decimal(str(s.get("costo", 0)))
-
-            if "fuel" in nome_supp:
-                continue
-
-            supplementi_puliti.append(s)
-
-            if s.get("applica_fuel") is True or s.get("applica fuel") is True:
-                totale_supplementi_con_fuel += costo_supp
-            else:
-                totale_supplementi_senza_fuel += costo_supp
-
-        # aggiungo anche i supplementi peso volume tra quelli senza fuel
-        for s in dettaglio_supp_peso_volume:
-            supplementi_puliti.append(s)
-            totale_supplementi_senza_fuel += Decimal(str(s["costo"]))
-
-        # 5. Fuel
-        fuel = FuelEngine.calcola(
-            spedizione,
-            pre_base,
-            supplementi_puliti,
-            zona_get
-        )
-
-        costo_fuel_calcolato = Decimal(str(fuel["totale"]))
-
-        prezzo_finale = (
-                pre_base
-                + totale_supplementi_con_fuel
-                + costo_fuel_calcolato
-                + totale_supplementi_senza_fuel
-        )
-
-        imponibile_senza_fuel = (
-                pre_base
-                + totale_supplementi_con_fuel
-                + totale_supplementi_senza_fuel
-        )
-
-        totale_imponibile_con_fuel = imponibile_senza_fuel + costo_fuel_calcolato
-        totale_imponibile_senza_fuel = imponibile_senza_fuel
-
-        # 6. Output simile a _scaglioni
-        tariffa_collo_testo = (
-            f"{tariffa_collo} – "
-            f"{numero_colli} colli: "
-            f"<b>€ {tariffa_collo.costo_euro:.2f}</b>"
-        )
-
-        lista_supp_con_fuel = []
-        lista_supp_senza_fuel = []
-        contatore_con_fuel = 1
-        contatore_senza_fuel = 1
-
-        for f in fuel.get("dettaglio", []):
-            costo = Decimal(str(f.get("costo", 0)))
-
-            if costo >= Decimal("0.01"):
-                stringa_fuel = f"{f.get('nome')}"
-                if f.get("percentuale"):
-                    stringa_fuel += f" ({f.get('percentuale')}%)"
-
-                lista_supp_senza_fuel.append(
-                    f"{contatore_senza_fuel}. {stringa_fuel}: <b>€ {costo:.2f}</b>"
-                )
-                contatore_senza_fuel += 1
-
-        for s in supplementi_puliti:
-            costo = Decimal(str(s.get("costo", 0)))
-
-            if costo >= Decimal("0.01"):
-                if s.get("applica_fuel") is True or s.get("applica fuel") is True:
-                    lista_supp_con_fuel.append(
-                        f"{contatore_con_fuel}. {s.get('nome')}: <b>€ {costo:.2f}</b>"
-                    )
-                    contatore_con_fuel += 1
-                else:
-                    extra = ""
-
-                    if s.get("peso_volume_collo"):
-                        extra = f" ({Decimal(str(s.get('peso_volume_collo'))):.2f} kg volume)"
-
-                    lista_supp_senza_fuel.append(
-                        f"{contatore_senza_fuel}. {s.get('nome')}{extra}: <b>€ {costo:.2f}</b>"
-                    )
-                    contatore_senza_fuel += 1
-
-        stringa_supp_con_fuel = (
-            "<br>".join(lista_supp_con_fuel)
-            if lista_supp_con_fuel
-            else "Nessuno"
-        )
-
-        stringa_supp_senza_fuel = (
-            "<br>".join(lista_supp_senza_fuel)
-            if lista_supp_senza_fuel
-            else "Nessuno"
-        )
-
-        volume_cm3 = dettaglio.get("volume_cm3", 0)
-        divisore = dettaglio.get("divisore", 1)
-        formula_volume = f"{volume_cm3:.0f} cm³ / {divisore}"
-
-        items_ordinati = [
-            {"label": "Numero colli", "value": f"{numero_colli}"},
-            {"label": "Peso tassabile", "value": f"{peso_tassabile:.2f} kg"},
-            {"label": "Peso reale", "value": f"{dettaglio['peso_reale']:.2f} kg"},
-            {"label": "Peso volume", "value": f"{dettaglio['peso_volume']:.2f} kg ({formula_volume})"},
-            {"label": "Tariffa a colli", "value": tariffa_collo_testo, "is_html": True},
-            {"label": "Supplementi con fuel applicati", "value": stringa_supp_con_fuel, "is_html": True},
-            {"label": "Supplementi senza fuel applicati", "value": stringa_supp_senza_fuel, "is_html": True},
-            {"label": "Totale preventivo", "value": f"<b>€ {prezzo_finale:.2f}</b>", "is_total": True, "is_html": True},
-            {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>",
-             "is_total": True, "is_html": True},
-        ]
-
-        return {
-            "prezzo": prezzo_finale,
-            "dettaglio": {
-                "items": items_ordinati
-            },
-            "totale_imponibile_con_fuel": totale_imponibile_con_fuel,
-            "totale_imponibile_senza_fuel": totale_imponibile_senza_fuel,
-        }'''
-
-    @staticmethod
     def _a_collo(context):
         spedizione = context["spedizione"]
         pacchi = context["pacchi"]
@@ -528,13 +310,23 @@ class CalcolatriceService:
         )
 
         # 1. Prezzo base della tariffa a colli
+        tariffa_a_collo = Decimal(str(tariffa_collo.costo_euro))
         pre_base_tariffa = Decimal(str(tariffa_collo.costo_euro))
+        nolo = pre_base_tariffa * Decimal(numero_colli)
+
+
+
+        pre_base = nolo
 
         # 2. Supplemento peso volume per collo > 45 kg
         divisore = Decimal(str(dettaglio.get("divisore", 1)))
 
-        supplemento_peso_volume = Decimal("0")
+
+        # supplemento cod SAHAN (Supplementi Additional Handling)
+        supplemento_additional_handling = Decimal("0")
         dettaglio_supp_peso_volume = []
+        dettaglio_supplemento_additional_handling = []
+
 
         for index, pacco in enumerate(pacchi, start=1):
             altezza = Decimal(str(pacco.get("altezza_cm", 0) or 0))
@@ -543,6 +335,8 @@ class CalcolatriceService:
 
             volume_cm3_collo = altezza * larghezza * profondita
             peso_volume_collo = volume_cm3_collo / divisore
+            circonferenza = ((altezza * 2) + (larghezza * 2)  + profondita)
+            print(circonferenza)
 
             print(
                 f"Collo {index}: "
@@ -551,19 +345,60 @@ class CalcolatriceService:
                 f"{peso_volume_collo:.2f} kg volume"
             )
 
-            if peso_volume_collo > Decimal("45"):
-                supplemento_peso_volume += Decimal("5.00")
+            if volume_cm3_collo > Decimal("169901"):
+                supplemento_additional_handling += Decimal("10")
 
-                dettaglio_supp_peso_volume.append({
-                    "nome": f"Supplemento peso volume collo {index} > 45 kg",
+                dettaglio_supplemento_additional_handling.append({
+                    "nome": f"Supplemento additional handling: il volume del pacco  {volume_cm3_collo} {index} > 169901 cm3",
                     "costo": Decimal("10.00"),
                     "peso_volume_collo": peso_volume_collo,
-                    "applica_fuel": False,
+                    "applica_fuel": True,
                 })
 
-                print(f"Supplemento peso volume applicato al collo {index}: € 5.00")
+                print(f" A Supplemento peso volume applicato al collo {index}: € 10.00")
 
-        pre_base = pre_base_tariffa
+            elif circonferenza > 266:
+                supplemento_additional_handling += Decimal("10")
+
+                dettaglio_supplemento_additional_handling.append({
+                    "nome": f"Supplemento additional handling: la circonferenza del pacco  {circonferenza} {index} > 266 cm",
+                    "costo": Decimal("10.00"),
+                    "peso_volume_collo": peso_volume_collo,
+                    "applica_fuel": True,
+                })
+
+                print(f" B Supplemento peso volume applicato al collo circonferenza{index}: € 10.00")
+
+            elif max(larghezza, altezza, profondita) > 121:
+                supplemento_additional_handling += Decimal("10")
+
+                dettaglio_supplemento_additional_handling.append({
+                    "nome": f"Supplemento additional handling: lato max   {index} > 121 cm",
+                    "costo": Decimal("10.00"),
+                    "peso_volume_collo": peso_volume_collo,
+                    "applica_fuel": True,
+                })
+
+                print(f" B Supplemento peso volume applicato al collo lato max >121cm {index}: € 10.00")
+
+            #se il secondo lato piu lungo è maggiore di 76
+            dimensioni = sorted([larghezza, altezza, profondita], reverse=True)
+            #lato_max = dimensioni[0]
+            secondo_lato = dimensioni[1]
+            if secondo_lato > 76:
+                supplemento_additional_handling += Decimal("10")
+
+                dettaglio_supplemento_additional_handling.append({
+                    "nome": f"Supplemento additional handling: secondo lato {secondo_lato} cm collo {index} > 76 cm",
+                    "costo": Decimal("10.00"),
+                    "peso_volume_collo": peso_volume_collo,
+                    "applica_fuel": True,
+                })
+
+                print(f"B Supplemento additional handling applicato al collo " f"{index}: secondo lato {secondo_lato} cm > 76 cm : € 10.00")
+
+        nolo = pre_base_tariffa * Decimal(numero_colli)
+        pre_base = nolo
 
         # 3. Supplementi standard
         supp = SupplementEngine.calcola(
@@ -592,10 +427,14 @@ class CalcolatriceService:
             else:
                 totale_supplementi_senza_fuel += costo_supp
 
-        # 4. Supplemento peso volume manuale, senza fuel
-        for s in dettaglio_supp_peso_volume:
+        # 4. Supplemento peso volume manuale, con fuel
+        for s in dettaglio_supplemento_additional_handling:
             supplementi_puliti.append(s)
-            totale_supplementi_senza_fuel += Decimal(str(s["costo"]))
+
+            if s.get("applica_fuel") is True:
+                totale_supplementi_con_fuel += Decimal(str(s["costo"]))
+            else:
+                totale_supplementi_senza_fuel += Decimal(str(s["costo"]))
 
         # 5. Fuel
         fuel = FuelEngine.calcola(
@@ -624,8 +463,8 @@ class CalcolatriceService:
         totale_imponibile_senza_fuel = imponibile_senza_fuel
 
         # 6. Output dettagliato
-        tariffa_collo_testo = (f"{tariffa_collo} {numero_colli} colli: € {pre_base_tariffa:.2f} a collo")
-        nolo = numero_colli * pre_base_tariffa
+        tariffa_collo_testo = (f"{tariffa_collo} {numero_colli} colli: € {tariffa_a_collo:.2f} a collo")
+        #nolo = numero_colli * pre_base_tariffa
 
         lista_supp_con_fuel = []
         lista_supp_senza_fuel = []
@@ -699,7 +538,8 @@ class CalcolatriceService:
         ]
 
         print(f"pre_base_tariffa colli = {pre_base_tariffa}")
-        print(f"supplemento_peso_volume = {supplemento_peso_volume}")
+        #print(f"supplemento_peso_volume = {supplemento_peso_volume}")
+        print(f"supplemento_additional_handling = {supplemento_additional_handling}")
         print(f"costo_fuel_calcolato = {costo_fuel_calcolato}")
         print(f"prezzo_finale = {prezzo_finale}")
 
@@ -711,6 +551,7 @@ class CalcolatriceService:
             "totale_imponibile_con_fuel": totale_imponibile_con_fuel,
             "totale_imponibile_senza_fuel": totale_imponibile_senza_fuel,
         }
+
 
 
 
