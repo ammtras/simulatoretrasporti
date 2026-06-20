@@ -7,7 +7,7 @@ from trasporti.services.base import TariffValidityService
 class SupplementEngine:
 
     @staticmethod
-    def calcola(spedizione, pacchi, base_importo, zona_corrente, ids_supplementi=None):
+    def calcola_supplementi(spedizione, pacchi, base_importo, zona_corrente, ids_supplementi=None):
         # 1. Recupera solo ciò che è SELEZIONATO
         # Se non hai selezionato nulla (ids_supplementi vuoto), la lista deve essere vuota!
         if not ids_supplementi:
@@ -116,6 +116,10 @@ class SupplementEngine:
                     costo = base_importo * sup.valore / Decimal("100")
                     if minimo > 0:
                         costo = max(costo, minimo)
+            codici_supplementi_trovati = set(
+                supplementi.values_list("tipo_servizio__codice", flat=True)
+            )
+
 
             # =========================================================
             # 🟢 ACCUMULO

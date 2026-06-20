@@ -42,10 +42,12 @@
                         <span class="zona-tag">{{ z.nome }}</span>
                     {% endfor %}
                 </td>
+
                 <td>
-                    {% for scaglione in zs.zona_spedizioniere.all %}
+    {% for scaglione in zs.zona_spedizioniere.all %}
         <div style="font-size: 11px; margin-bottom: 4px; border-bottom: 1px solid #eee;">
-            {{ scaglione.min_weight|floatformat:2 }}-{{ scaglione.max_weight|floatformat:2 }}kg: <b>€{{ scaglione.price|floatformat:2 }}</b>
+            {{ scaglione.min_weight|floatformat:2 }}-{{ scaglione.max_weight|floatformat:2 }}kg:
+            <b>€{{ scaglione.price|floatformat:2 }}</b>
             <br>
             <small style="color: #666;">
                 Valido: {{ scaglione.valid_from|date:"d/m/Y" }}
@@ -56,8 +58,30 @@
                 {% endif %}
             </small>
         </div>
+
+    {% empty %}
+
+        {% for tariffa_collo in zs.zona_spedizioniere_Tc.all %}
+            <div style="font-size: 11px; margin-bottom: 4px; border-bottom: 1px solid #eee;">
+                Da {{ tariffa_collo.colli_quantità_da }} a {{ tariffa_collo.colli_quantità_a }} colli:
+                <b>€{{ tariffa_collo.costo_euro|floatformat:2 }}</b>
+                <br>
+                <small style="color: #666;">
+                    Valido: {{ tariffa_collo.valid_from|date:"d/m/Y" }}
+                    {% if tariffa_collo.valid_to %}
+                        a {{ tariffa_collo.valid_to|date:"d/m/Y" }}
+                    {% else %}
+                        (in corso)
+                    {% endif %}
+                </small>
+            </div>
+        {% empty %}
+            <span class="text-muted">Nessuna tariffa</span>
+        {% endfor %}
+
     {% endfor %}
-                </td>
+</td>
+
                 <td>
     {% for supp in zs.supplementi.all %}
         <div style="margin-bottom: 8px; border-bottom: 1px dotted #ccc; font-size: 11px;">
@@ -67,8 +91,20 @@
             {% endif %}
             <br>
 
-            Tipo: {{ supp.calc_type }} | Valore: <b>{{ supp.valore|floatformat:2 }}</b>
+Tipo: {{ supp.calc_type }} |
+Valore:
+<b>
+{% if supp.tipo_servizio.codice == "ASSIC" %}
+    {{ supp.valore|floatformat:3 }}%
 
+{% elif supp.tipo_servizio.codice == "FUELS" %}
+    {{ supp.valore|floatformat:2 }}%
+
+{% else %}
+    {{ supp.valore|floatformat:2 }}
+
+{% endif %}
+</b>
             {% if supp.diritto_minimo_euro > 0 %}
                 <br><small>Min: €{{ supp.diritto_minimo_euro|floatformat:2 }}</small>
             {% endif %}

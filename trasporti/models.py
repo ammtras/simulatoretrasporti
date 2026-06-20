@@ -73,14 +73,14 @@ class Zona_spedizioniere(models.Model):
         peso_reale = Decimal(str(peso_reale))
         divisore_standard = Decimal(str(self.divisore_volumetrico))
         peso_volume_standard = Decimal(str(volume_totale_cm3))/self.divisore_volumetrico
-        print(f'Function get_divisore_effettivo')
-        print(peso_volume_standard)
+        #print(f'Function get_divisore_effettivo')
+        #print(peso_volume_standard)
         soglia = Decimal(str(self.peso_soglia_light)) if self.peso_soglia_light else None
         divisore_light = (Decimal(str(self.divisore_volumetrico_light)) if self.divisore_volumetrico_light else None)
 
         # Se la logica light non è configurata
         if not soglia or soglia <= 0 or not divisore_light or divisore_light <= 0:
-            print(f'1 divisore_standard {divisore_standard} ')
+            #print(f'1 divisore_standard {divisore_standard} ')
             return divisore_standard
 
 
@@ -92,23 +92,23 @@ class Zona_spedizioniere(models.Model):
         #print(f' soglia {soglia}')
 
         if max(peso_volumetrico_light, peso_reale) < soglia:
-            print(f'2  max [pvl  {peso_volumetrico_light} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
-            print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
+            #print(f'2  max [pvl  {peso_volumetrico_light} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
+            #print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
             return divisore_light
 
         # se il peso reale e il peso volume standard sono < soglia
         elif max(peso_reale,peso_volume_standard) < soglia:
-            print(f'3  max [pvl  {peso_volume_standard} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
-            print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
+            #print(f'3  max [pvl  {peso_volume_standard} & {soglia} peso real {peso_reale}  ]< soglia {soglia}')
+            #print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
             return divisore_light
 
         elif max(peso_reale,peso_volumetrico_light) > soglia:
-            print('3')
-            print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
+            #print('3')
+            #print(f'peso reale {peso_reale},peso_volumetrico_light {peso_volumetrico_light}, {peso_volume_standard}')
             return divisore_standard
 
         else:
-            print('4 ??riapplico lo standard')
+            #print('4 ??riapplico lo standard')
             return divisore_standard
 
 
@@ -264,7 +264,7 @@ class Supplemento(models.Model):
     nome = models.CharField(max_length=200)
     calc_type = models.CharField(max_length=28,choices=TYPES)
     applic_type = models.CharField(max_length=28,choices=APPLICAZIONE)
-    valore = models.DecimalField(max_digits=10,decimal_places=2)
+    valore = models.DecimalField(max_digits=10,decimal_places=3)
     applica_fuel = models.BooleanField(default=True)
     valid_from = models.DateField(default=timezone.now)
     valid_to = models.DateField(null=True, blank=True)

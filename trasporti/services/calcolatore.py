@@ -5,7 +5,7 @@ from django.db.models import Q
 from trasporti.services.base import TariffValidityService
 from trasporti.services.supplement_engine import SupplementEngine
 from trasporti.services.fuel_engine import FuelEngine
-from trasporti.models import Tariffa_colli
+from trasporti.models import Tariffa_colli, Supplemento
 from trasporti.services.detail_renderer import DetailRendererService
 
 class CalcolatriceService:
@@ -90,7 +90,7 @@ class CalcolatriceService:
         if zona_get.spedizioniere.tipo_tariffazione == "scaglioni":
             return CalcolatriceService._scaglioni(context)
 
-        return CalcolatriceService._a_collo(pacchi, zona_get)
+        return CalcolatriceService._a_collo(context)
 
 
     @staticmethod
@@ -101,6 +101,8 @@ class CalcolatriceService:
         peso_tassabile = context["peso_tassabile"]
         dettaglio = context["dettaglio"]
         ids_supplementi = context.get("ids_supplementi", [])
+
+
 
         # 1. Calcolo tariffa base
         scaglioni = TariffValidityService.filtra_validita(
@@ -137,12 +139,12 @@ class CalcolatriceService:
         pre_base = prezzo + costo_overflow
 
         # 2. CHIAMATA AL SUPPLEMENT ENGINE
-        supp = SupplementEngine.calcola(
+        supp = SupplementEngine.calcola_supplementi(
             spedizione,
             pacchi,
             pre_base,
             zona_get,
-            ids_supplementi=ids_supplementi
+            ids_supplementi=ids_supplementi,
         )
 
         # 3. Logica Fuel e Totali
@@ -163,7 +165,7 @@ class CalcolatriceService:
 
         fuel = FuelEngine.calcola(spedizione, pre_base, supplementi_puliti, zona_get)
         costo_fuel_calcolato = fuel["totale"]
-        prezzo_finale = pre_base + totale_supplementi_con_fuel + costo_fuel_calcolato + totale_supplementi_senza_fuel
+        subtotale_euro_imponibile = pre_base + totale_supplementi_con_fuel + costo_fuel_calcolato + totale_supplementi_senza_fuel
         imponibile_senza_fuel = pre_base + totale_supplementi_con_fuel + totale_supplementi_senza_fuel
         totale_imponibile_con_fuel = pre_base + totale_supplementi_con_fuel + totale_supplementi_senza_fuel + costo_fuel_calcolato
         totale_imponibile_senza_fuel = pre_base + totale_supplementi_con_fuel + totale_supplementi_senza_fuel
@@ -207,6 +209,9 @@ class CalcolatriceService:
         volume_cm3 = dettaglio.get('volume_cm3', 0)
         divisore = dettaglio.get('divisore', 1)
         formula_volume = f"{volume_cm3:.0f} cm³ / {divisore}"
+        #subtotale_euro_imponibile
+        iva_euro = Decimal(subtotale_euro_imponibile * Decimal(0.22))
+        totale_con_iva_euro = Decimal(subtotale_euro_imponibile * Decimal(1.22))
 
         items_ordinati = [
             {"label": "Peso tassabile", "value": f"{peso_tassabile:.2f} kg"},
@@ -215,14 +220,17 @@ class CalcolatriceService:
             {"label": "Scaglione", "value": scaglione_testo, "is_html": True},
             {"label": "Supplementi con fuel applicati", "value": stringa_supp_con_fuel, "is_html": True},
             {"label": "Supplementi senza fuel applicati", "value": stringa_supp_senza_fuel, "is_html": True},
-            {"label": "Totale preventivo", "value": f"<b>€ {prezzo_finale:.2f}</b>", "is_total": True, "is_html": True},
-            {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>", "is_total": True, "is_html": True}
+            {"label": "Subtotale Euro imponibile", "value": f"<b>€ {subtotale_euro_imponibile:.2f}</b>", "is_html": True},
+            {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>",  "is_html": True},
+            {"label": "IVA", "value": f"<b>€ {iva_euro:.2f}</b>", "is_html": True},
+            {"label": "TOTALE IVA INCLUSA", "value": f"<b>€ {totale_con_iva_euro:.2f}</b>", "is_total": True,
+             "is_html": True},
         ]
 
         print(totale_imponibile_con_fuel)
         print(totale_imponibile_senza_fuel)
         return {
-            "prezzo": prezzo_finale,
+            "totale_con_iva_euro": totale_con_iva_euro,
             "dettaglio": {"items": items_ordinati},
             "totale_imponibile_con_fuel": totale_imponibile_con_fuel,
             "totale_imponibile_senza_fuel": totale_imponibile_senza_fuel,
@@ -246,7 +254,7 @@ class CalcolatriceService:
             f"il totale colli della spedizione è {numero_colli}"
         )
 
-        print(f"zona_get = {zona_get}")
+        '''print(f"zona_get = {zona_get}")
         print(f"zona_get.id = {zona_get.id}")
 
         print("\n=== TUTTE LE TARIFFE COLLI DEL DB ===")
@@ -258,7 +266,7 @@ class CalcolatriceService:
                 f"da={t.colli_quantità_da} | "
                 f"a={t.colli_quantità_a} | "
                 f"costo={t.costo_euro}"
-            )
+            )'''
 
         tariffe_colli = Tariffa_colli.objects.filter(
             zona_spedizioniere=zona_get
@@ -400,13 +408,33 @@ class CalcolatriceService:
         nolo = pre_base_tariffa * Decimal(numero_colli)
         pre_base = nolo
 
+        print("DEBUG A_COLLO ids_supplementi:", ids_supplementi)
+        print("DEBUG A_COLLO assicurazione_euro:", spedizione.assicurazione_euro)
+        print("DEBUG A_COLLO zona_get:", zona_get)
+
+        print("DEBUG zone ASSIC:")
+        for s in Supplemento.objects.filter(tipo_servizio__codice="ASSIC"):
+            print(
+                s.id,
+                s.nome,
+                list(s.zone_tariffazione.values_list("id", "nome"))
+            )
+        print("ids_supplementi =", ids_supplementi)
+
+        for s in Supplemento.objects.filter(id__in=ids_supplementi):
+            print(
+                f"aaaa id={s.id} | "
+                f"bbbb nome={s.nome} | "
+                f"cccc codice={s.tipo_servizio.codice if s.tipo_servizio else 'None'}"
+            )
+
         # 3. Supplementi standard
-        supp = SupplementEngine.calcola(
+        supp = SupplementEngine.calcola_supplementi(
             spedizione,
             pacchi,
             pre_base,
             zona_get,
-            ids_supplementi=ids_supplementi
+            ids_supplementi=ids_supplementi,
         )
 
         supplementi_puliti = []
@@ -446,12 +474,14 @@ class CalcolatriceService:
 
         costo_fuel_calcolato = Decimal(str(fuel["totale"]))
 
-        prezzo_finale = (
+        prezzo = (
                 pre_base
                 + totale_supplementi_con_fuel
-                + costo_fuel_calcolato
                 + totale_supplementi_senza_fuel
+                + costo_fuel_calcolato
         )
+        #subtotale euro imponibile
+        print(f'DEBUG FEDEX subtotale_euro_imponibile {prezzo}')
 
         imponibile_senza_fuel = (
                 pre_base
@@ -522,6 +552,10 @@ class CalcolatriceService:
         volume_cm3 = dettaglio.get("volume_cm3", 0)
         divisore_output = dettaglio.get("divisore", 1)
         formula_volume = f"{volume_cm3:.0f} cm³ / {divisore_output}"
+        #prezzo è il totale imponinile
+        iva_euro = Decimal(prezzo * Decimal(0.22))
+        totale_con_iva_euro = Decimal(prezzo * Decimal(1.22))
+
 
         items_ordinati = [
             {"label": "Numero colli", "value": f"{numero_colli}"},
@@ -532,19 +566,22 @@ class CalcolatriceService:
             {"label": "Nolo", "value": f"<b>€ {nolo:.2f}</b>", "is_html": True},
             {"label": "Supplementi con fuel applicati", "value": stringa_supp_con_fuel, "is_html": True},
             {"label": "Supplementi senza fuel applicati", "value": stringa_supp_senza_fuel, "is_html": True},
-            {"label": "Totale preventivo", "value": f"<b>€ {prezzo_finale:.2f}</b>", "is_total": True, "is_html": True},
-            {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>",
-             "is_total": True, "is_html": True},
+            {"label": "Subtotale euro imponibile", "value": f"<b>€ {prezzo:.2f}</b>", "is_total": True, "is_html": True},
+            {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>", "is_html": True},
+            {"label": "IVA", "value": f"<b>€ {iva_euro:.2f}</b>", "is_html": True},
+            {"label": "TOTALE IVA INCLUSA", "value": f"<b>€ {totale_con_iva_euro:.2f}</b>", "is_total": True, "is_html": True},
         ]
 
-        print(f"pre_base_tariffa colli = {pre_base_tariffa}")
+        print(f"DEBUG FEDEX imponibile_senza_fuel  = {imponibile_senza_fuel}")
         #print(f"supplemento_peso_volume = {supplemento_peso_volume}")
-        print(f"supplemento_additional_handling = {supplemento_additional_handling}")
-        print(f"costo_fuel_calcolato = {costo_fuel_calcolato}")
-        print(f"prezzo_finale = {prezzo_finale}")
+        #print(f"supplemento_additional_handling = {supplemento_additional_handling}")
+        #print(f"costo_fuel_calcolato = {costo_fuel_calcolato}")
+
+
+
 
         return {
-            "prezzo": prezzo_finale,
+            "totale_con_iva_euro": totale_con_iva_euro,
             "dettaglio": {
                 "items": items_ordinati
             },

@@ -157,7 +157,7 @@
         <td>
             {% if s.dettaglio.items %}
             {% for riga in s.dettaglio.items %}
-            {% if not forloop.last %} {% if riga.is_total %}
+             {% if riga.is_total %}
             <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;">
             <span style="font-size: 1.1em; color: #2c3e50;">
                         <strong>{{ riga.label }}: {{ riga.value|safe }}</strong>
@@ -167,7 +167,7 @@
             {% if riga.is_html %}{{ riga.value|safe }}{% else %}{{ riga.value|safe }}{% endif %}
             <br>
             {% endif %}
-            {% endif %}
+
             {% endfor %}
             {% else %}
             <span style="color: #999; font-style: italic;">Dettaglio non disponibile</span>

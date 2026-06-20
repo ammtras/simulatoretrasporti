@@ -20,190 +20,38 @@ def check_supplemento_applicable(ids_list, spedizione):
 
 
 # non cancellare è la mia funzione originale
-def FUNZIA_SOLO_GLS_simula_preventivi(spedizione, pacchi):
-    preventivi = []
 
-    ids_supp = getattr(spedizione, '_supplementi_simulati', [])
-    servizi_scelti_per_check = ids_supp
-    print(f'servizi_scelti_per_check {servizi_scelti_per_check}')
 
-    ## inizio funzione trova zona spedizioniere ovvero le possibili tariffe applicabili
-    id_zona_partenza = spedizione.da_zona_id
-    id_zona_arrivo = spedizione.a_zona_id
+def aggiungi_supplementi_automatici_per_zona(ids_list, spedizione, zona_spedizioniere):
+    ids_finali = list(ids_list)
 
-    zone_candidate = Zona_spedizioniere.objects.filter(
-        Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
-    ).distinct().select_related('spedizioniere')
+    codici_da_aggiungere = []
 
-    spedizionieri_map = {}
-    for z in zone_candidate:
-        spedizionieri_map.setdefault(z.spedizioniere_id, []).append(z)
+    if spedizione.assicurazione_euro and spedizione.assicurazione_euro > 0:
+        codici_da_aggiungere.append("ASSIC")
 
-    for spedizioniere_id, zone_trovate in spedizionieri_map.items():
+    if spedizione.contrassegno_euro and spedizione.contrassegno_euro > 0:
+        codici_da_aggiungere.append("CONTR")
 
-        z_spedizioniere = max(zone_trovate, key=lambda z: z.priorita)
-        print(f'z_spedizioniere{z_spedizioniere} (ZONA PRIORITARIA)')
+    codici_da_aggiungere.append("PEAKS")
 
-        nome_spedizioniere = z_spedizioniere.spedizioniere.nome.upper()
+    for codice in codici_da_aggiungere:
+        supplementi = Supplemento.objects.filter(
+            tipo_servizio__codice=codice,
+            zone_tariffazione=zona_spedizioniere
+        )
 
-        if nome_spedizioniere == "GLS":
-
-        # SOLO GLS (o altri reali)
-        #if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
-
-            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
-                pacchi,
-                z_spedizioniere
+        if codice == "PEAKS":
+            supplementi = supplementi.filter(
+                valid_from__lte=spedizione.data,
+                valid_to__gte=spedizione.data
             )
 
-            context_gls = {
-                "spedizione": spedizione,
-                "pacchi": pacchi,
-                "zona": z_spedizioniere,
-                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
-                "dettaglio": dettaglio_pesi,
-                "ids_supplementi": ids_supp
-            }
-            #print(context_gls)
-            #qui passano tutti i supplementi flaggati
+        for supp in supplementi:
+            if supp.id not in ids_finali:
+                ids_finali.append(supp.id)
 
-            #  qui è il fumetto verde del preventivo
-            result_reale = CalcolatriceService._scaglioni(context_gls)
-            #print(result_reale)
-
-            if result_reale:
-                preventivi.append({
-                    "zona_tariffazione_id": z_spedizioniere.id,
-                    "trasportatore": z_spedizioniere.spedizioniere.nome,
-                    "prezzo": result_reale["prezzo"],
-                    "dettaglio": result_reale["dettaglio"],
-                    
-                })
-
-        elif nome_spedizioniere == "FEDEX":
-
-            # SOLO GLS (o altri reali)
-            # if z_spedizioniere.spedizioniere.nome.upper() == "GLS":
-
-            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
-                pacchi,
-                z_spedizioniere
-            )
-
-            context_gls = {
-                "spedizione": spedizione,
-                "pacchi": pacchi,
-                "zona": z_spedizioniere,
-                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
-                "dettaglio": dettaglio_pesi,
-                "ids_supplementi": ids_supp
-            }
-            # print(context_gls)
-            # qui passano tutti i supplementi flaggati
-
-            #  qui è il fumetto verde del preventivo
-            result_reale = CalcolatriceService._a_collo(context_gls)
-            # print(result_reale)
-
-            if result_reale:
-                preventivi.append({
-                    "zona_tariffazione_id": z_spedizioniere.id,
-                    "trasportatore": z_spedizioniere.spedizioniere.nome,
-                    "prezzo": result_reale["prezzo"],
-                    "dettaglio": result_reale["dettaglio"],
-
-                })
-
-
-    if preventivi:
-        min_price = min(p["prezzo"] for p in preventivi)
-        for p in preventivi:
-            p["best"] = (p["prezzo"] == min_price)
-
-    return preventivi
-
-
-def XXXsimula_preventivi(spedizione, pacchi):
-    preventivi = []
-
-    ids_supp = getattr(spedizione, '_supplementi_simulati', [])
-    servizi_scelti_per_check = ids_supp
-    print(f'servizi_scelti_per_check {servizi_scelti_per_check}')
-
-    ## inizio funzione trova zona spedizioniere ovvero le possibili tariffe applicabili
-    id_zona_partenza = spedizione.da_zona_id
-    id_zona_arrivo = spedizione.a_zona_id
-
-    zone_candidate = Zona_spedizioniere.objects.filter(
-        Q(zona=id_zona_partenza) | Q(zona=id_zona_arrivo)
-    ).distinct().select_related('spedizioniere')
-
-    spedizionieri_map = {}
-
-    for z in zone_candidate:
-        spedizionieri_map.setdefault(z.spedizioniere_id, []).append(z)
-
-    for spedizioniere_id, zone_trovate in spedizionieri_map.items():
-
-        # Trovo la priorità più alta per questo spedizioniere
-        priorita_massima = max(z.priorita for z in zone_trovate)
-
-        # Prendo TUTTE le tariffe con quella priorità
-        zone_prioritarie = [
-            z for z in zone_trovate
-            if z.priorita == priorita_massima
-        ]
-
-        for z_spedizioniere in zone_prioritarie:
-
-            print(f'z_spedizioniere {z_spedizioniere} (PRIORITÀ {z_spedizioniere.priorita})')
-
-            nome_spedizioniere = z_spedizioniere.spedizioniere.nome.upper()
-
-            dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
-                pacchi,
-                z_spedizioniere
-            )
-
-            context_tariffa = {
-                "spedizione": spedizione,
-                "pacchi": pacchi,
-                "zona": z_spedizioniere,
-                "peso_tassabile": dettaglio_pesi["peso_tassabile"],
-                "dettaglio": dettaglio_pesi,
-                "ids_supplementi": ids_supp
-            }
-
-            # Scelta motore tariffario
-            if nome_spedizioniere == "GLS":
-
-                result_reale = CalcolatriceService._scaglioni(
-                    context_tariffa
-                )
-
-            elif nome_spedizioniere == "FEDEX":
-
-                result_reale = CalcolatriceService._a_collo(
-                    context_tariffa
-                )
-
-            else:
-                continue
-
-            if result_reale:
-                preventivi.append({
-                    "zona_tariffazione_id": z_spedizioniere.id,
-                    "zona_tariffazione_nome": z_spedizioniere.nome,
-                    "trasportatore": z_spedizioniere.spedizioniere.nome,
-                    "prezzo": result_reale["prezzo"],
-                    "dettaglio": result_reale["dettaglio"],
-                })
-    if preventivi:
-        min_price = min(p["prezzo"] for p in preventivi)
-        for p in preventivi:
-            p["best"] = (p["prezzo"] == min_price)
-
-    return preventivi
+    return ids_finali
 
 def simula_preventivi(spedizione, pacchi):
     preventivi = []
@@ -216,7 +64,7 @@ def simula_preventivi(spedizione, pacchi):
         spedizione.a_zona,
     ]
 
-    spedizionieri = Spedizioniere.objects.all().order_by("nome")
+    spedizionieri = Spedizioniere.objects.all().order_by("-nome")
     # INIZIO LE MODIFICHE ORA
 
     for spedizioniere in spedizionieri:
@@ -252,13 +100,19 @@ def simula_preventivi(spedizione, pacchi):
                 z_spedizioniere
             )
 
+            ids_supp_zona = aggiungi_supplementi_automatici_per_zona(
+                ids_supp,
+                spedizione,
+                z_spedizioniere
+            )
+
             context_tariffa = {
                 "spedizione": spedizione,
                 "pacchi": pacchi,
                 "zona": z_spedizioniere,
                 "peso_tassabile": dettaglio_pesi["peso_tassabile"],
                 "dettaglio": dettaglio_pesi,
-                "ids_supplementi": ids_supp,
+                "ids_supplementi": ids_supp_zona,
             }
 
             '''nome_spedizioniere = spedizioniere.nome.upper().strip()
@@ -293,15 +147,16 @@ def simula_preventivi(spedizione, pacchi):
                     "zona_tariffazione_nome": z_spedizioniere.nome,
                     "zone_tratta": str(zone_tratta),
                     "trasportatore": spedizioniere.nome,
-                    "prezzo": result_reale["prezzo"],
+                    "totale_con_iva_euro": result_reale["totale_con_iva_euro"],
                     "dettaglio": result_reale["dettaglio"],
+                    "warnings": result_reale.get("warnings", []),
                 })
 
     if preventivi:
-        min_price = min(p["prezzo"] for p in preventivi)
+        min_price = min(p["totale_con_iva_euro"] for p in preventivi)
 
         for p in preventivi:
-            p["best"] = p["prezzo"] == min_price
+            p["best"] = p["totale_con_iva_euro"] == min_price
 
     return preventivi
 
@@ -331,6 +186,38 @@ def loggout(request):
         logout(request)
         return redirect('login')
 
+
+def aggiungi_supplementi_automatici_per_zona(ids_list, spedizione, zona_spedizioniere):
+    ids_finali = list(ids_list)
+
+    codici_da_aggiungere = []
+
+    if spedizione.assicurazione_euro and spedizione.assicurazione_euro > 0:
+        codici_da_aggiungere.append("ASSIC")
+
+    if spedizione.contrassegno_euro and spedizione.contrassegno_euro > 0:
+        codici_da_aggiungere.append("CONTR")
+
+    codici_da_aggiungere.append("PEAKS")
+
+    for codice in codici_da_aggiungere:
+        supplementi = Supplemento.objects.filter(
+            tipo_servizio__codice=codice,
+            zone_tariffazione=zona_spedizioniere
+        )
+
+        if codice == "PEAKS":
+            supplementi = supplementi.filter(
+                valid_from__lte=spedizione.data,
+                valid_to__gte=spedizione.data
+            )
+
+        for supp in supplementi:
+            if supp.id not in ids_finali:
+                ids_finali.append(supp.id)
+
+    return ids_finali
+
 @login_required
 def crea_spedizione(request):
     title = "Simulatore"
@@ -341,31 +228,6 @@ def crea_spedizione(request):
     ids_supplementi = []
 
     def aggiungi_assic_contr_peaks(ids_list, valore_merce, valore_contr, spedizione):
-        # ASSIC
-        if valore_merce > 0:
-            assic_obj = Supplemento.objects.filter(tipo_servizio__codice='ASSIC').first()
-            if assic_obj and assic_obj.id not in ids_list:
-                ids_list.append(assic_obj.id)
-
-        # CONTR
-        if valore_contr > 0:
-            contr_obj = Supplemento.objects.filter(tipo_servizio__codice='CONTR').first()
-            if contr_obj and contr_obj.id not in ids_list:
-                ids_list.append(contr_obj.id)
-
-        # PEAKS
-        peaks_qs = Supplemento.objects.filter(tipo_servizio__codice='PEAKS')
-        for peak in peaks_qs:
-            if peak.valid_from and peak.valid_to:
-                if peak.valid_from <= spedizione.data <= peak.valid_to:
-                    if peak.id not in ids_list:
-                        ids_list.append(peak.id)
-
-
-
-        return ids_list
-
-
         return ids_list
 
 
@@ -439,23 +301,47 @@ def crea_spedizione(request):
                 except Spedizioniere.DoesNotExist:
                     spedizione.trasportatore_scelto = None
 
-                prezzo = request.POST.get("prezzo", "0")
-                spedizione.valore_preventivo = Decimal(str(prezzo).replace(",", "."))
+                #prezzo = request.POST.get("prezzo", "0")
+                totale_con_iva_euro = request.POST.get("totale_con_iva_euro", "0")
+                #print("xxxx PREzzo", repr(prezzo))
+                spedizione.valore_preventivo = Decimal(str(totale_con_iva_euro).replace(",", "."))
+
 
                 spedizione.save()
 
-                ids_finali = aggiungi_assic_contr_peaks(
+                ids_finali = aggiungi_supplementi_automatici_per_zona(
                     ids_int,
-                    valore_merce,
-                    valore_contr,
-                    spedizione
+                    spedizione,
+                    zona_corriere_obj
                 )
 
+                print("=== DEBUG SALVATAGGIO SUPPLEMENTI ===")
+                print("zona_corriere_obj:", zona_corriere_obj)
+                print("ids_int manuali:", ids_int)
+                print("assicurazione_euro:", spedizione.assicurazione_euro)
+                print("contrassegno_euro:", spedizione.contrassegno_euro)
+                print("ids_finali:", ids_finali)
+
+                for s in Supplemento.objects.filter(id__in=ids_finali):
+                    print(
+                        f"id={s.id} | "
+                        f"nome={s.nome} | "
+                        f"codice={s.tipo_servizio.codice if s.tipo_servizio else None}"
+                    )
 
                 spedizione.supplementi.set(ids_finali)
 
+                print("SUPPLEMENTI SALVATI:")
+                for s in spedizione.supplementi.all():
+                    print(
+                        f"id={s.id} | "
+                        f"nome={s.nome} | "
+                        f"codice={s.tipo_servizio.codice if s.tipo_servizio else None}"
+                    )
+
                 formset.instance = spedizione
                 formset.save()
+
 
                 return redirect("spedizioni")
 
@@ -477,6 +363,8 @@ class spedizioni(LoginRequiredMixin,ListView):
     template_name = "spedizioni.html"
     context_object_name = "spedizioni"
     ordering = ["-data", "-id"]
+
+
 
 
     def get_paginate_by(self, queryset):
@@ -584,7 +472,8 @@ class spedizioni(LoginRequiredMixin,ListView):
         # 3. Il tuo codice per il calcolo dinamico (CalcolatriceService)
         # Ora il ciclo opererà SOLO sugli elementi filtrati
         for s in context["spedizioni"]:
-            if s.trasportatore_scelto and s.trasportatore_scelto.nome.upper() == "GLS":
+            #if s.trasportatore_scelto and s.trasportatore_scelto.nome.upper() == "GLS":
+            if s.trasportatore_scelto and s.zona_tariffazione_spedizioniere:
                 # ... (il resto del tuo codice di calcolo resta invariato)
                 pacchi_list = [
                     {"altezza_cm": p.altezza_cm, "larghezza_cm": p.larghezza_cm, "profondita_cm": p.profondita_cm,
@@ -594,7 +483,7 @@ class spedizioni(LoginRequiredMixin,ListView):
                 result = CalcolatriceService.calcola(s, pacchi_list)
                 if result:
                     s.dettaglio = result.get("dettaglio", {})
-                    s.valore_preventivo_aggiornato = result.get("prezzo")
+                    s.valore_preventivo_aggiornato = result.get("totale_con_iva_euro")
 
         return context
 

@@ -23,7 +23,7 @@ class SpedizioneForm(forms.ModelForm):
 
 
 
-PaccoFormSet = inlineformset_factory(
+'''PaccoFormSet = inlineformset_factory(
     Spedizione,
     Pacco,
     fields=[
@@ -34,4 +34,44 @@ PaccoFormSet = inlineformset_factory(
     ],
     extra=10,   # 👈 10 righe vuote
     can_delete=True
+)'''
+
+
+
+
+class PaccoForm(forms.ModelForm):
+    class Meta:
+        model = Pacco
+        fields = [
+            "altezza_cm",
+            "larghezza_cm",
+            "profondita_cm",
+            "peso_kg",
+        ]
+
+        '''widgets = {
+            "altezza_cm": forms.NumberInput(attrs={
+                "class": "form-control form-control-sm d-inline-block",
+                "style": "width: 5ch;",
+            }),
+            "larghezza_cm": forms.NumberInput(attrs={
+                "class": "form-control form-control-sm d-inline-block",
+                "style": "width: 5ch;",
+            }),
+            "profondita_cm": forms.NumberInput(attrs={
+                "class": "form-control form-control-sm d-inline-block",
+                "style": "width: 5ch;",
+            }),
+            "peso_kg": forms.NumberInput(attrs={
+                "class": "form-control form-control-sm d-inline-block",
+                "style": "width: 5ch;",
+            }),
+        }'''
+
+PaccoFormSet = inlineformset_factory(
+    Spedizione,
+    Pacco,
+    form=PaccoForm,
+    extra=10,
+    can_delete=False
 )

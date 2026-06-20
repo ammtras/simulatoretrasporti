@@ -1,5 +1,19 @@
 {% extends 'base.html' %}
 {% block content %}
+<style>
+/* Chrome, Edge, Safari */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+</style>
 <h1>Preventivatore Trasporti</h1>
 
 <form method="post">
@@ -30,7 +44,7 @@
                 <th>Larghezza (cm)</th>
                 <th>Profondità (cm)</th>
                 <th>Altezza (cm) </th>
-                <th>Elimina</th>
+
             </tr>
         </thead>
 
@@ -41,7 +55,7 @@
                 <td>{{ f.larghezza_cm }}</td>
                 <td>{{ f.profondita_cm }}</td>
                 <td>{{ f.altezza_cm }}</td>
-                <td>{{ f.DELETE }}</td>
+
             </tr>
         {% endfor %}
         </tbody>
@@ -49,7 +63,7 @@
 
 
 
-    <button type="submit" name="action" value="simulate">
+    <button type="submit" name="action" value="simulate" class="btn btn-primary">
         Simula preventivi
     </button>
 
@@ -65,7 +79,7 @@
         {% for p in preventivi %}
             <li style="{% if p.best %}background:#d4edda; font-weight:bold;{% endif %} padding:10px; margin-bottom:10px;">
 
-                <strong>{{ p.trasportatore }}  {{ p.prezzo|floatformat:2 }} € </strong>
+                <strong>{{ p.trasportatore }}  {{ p.totale_con_iva_euro|floatformat:2 }} € </strong>
 
                 {% if p.best %}
                     ⭐ Miglior prezzo
@@ -77,6 +91,7 @@
         {% if p.dettaglio.items %}
             {% for riga in p.dettaglio.items %}
                 <strong>{{ riga.label|safe }}:</strong> {{ riga.value|safe }}<br>
+
             {% endfor %}
         {% else %}
             <strong>Peso reale:</strong> {{ p.dettaglio.peso_reale|floatformat:2 }} kg<br>
