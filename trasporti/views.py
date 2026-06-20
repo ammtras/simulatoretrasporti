@@ -88,17 +88,18 @@ def simula_preventivi(spedizione, pacchi):
 
         for z_spedizioniere in zone_prioritarie:
 
-            print(
+            '''print(
                 f"Spedizioniere: {spedizioniere.nome} | "
                 f"Zona tratta: {zone_tratta} | "
                 f"Tariffa: {z_spedizioniere.nome} | "
                 f"Priorità: {z_spedizioniere.priorita}"
-            )
+            )'''
 
             dettaglio_pesi = CalcolatriceService.dettaglio_calcolo_preventivo(
                 pacchi,
                 z_spedizioniere
             )
+            print(f'DDDEEEEBBBUUUGGG dettaglio_pesi {dettaglio_pesi}')
 
             ids_supp_zona = aggiungi_supplementi_automatici_per_zona(
                 ids_supp,
@@ -130,12 +131,30 @@ def simula_preventivi(spedizione, pacchi):
             else:
                 continue'''
 
+
+
             tipo_tariffazione = spedizioniere.tipo_tariffazione
 
+            print("SPEDIZIONIERE:", z_spedizioniere.spedizioniere.nome)
+            print("TIPO:", tipo_tariffazione)
+
             if tipo_tariffazione == Spedizioniere.A_SCAGLIONI:
+
+                print("=== STO CHIAMANDO DAVVERO _SCAGLIONI ===")
+                print("context_tariffa:", context_tariffa)
+                print("SPEDIZIONIERE:", z_spedizioniere.spedizioniere.nome)
+                print("ZONA:", z_spedizioniere)
+                print("PESO TASSABILE PRIMA:", context_tariffa["peso_tassabile"])
+                print("DETTAGLIO:", context_tariffa["dettaglio"])
+
                 result_reale = CalcolatriceService._scaglioni(context_tariffa)
 
             elif tipo_tariffazione == Spedizioniere.A_COLLO:
+
+                print("=== STO CHIAMANDO DAVVERO _A_COLLO ===")
+                print("context_tariffa:", context_tariffa)
+                print("peso_tassabile:", context_tariffa["peso_tassabile"])
+
                 result_reale = CalcolatriceService._a_collo(context_tariffa)
 
             else:
@@ -149,7 +168,6 @@ def simula_preventivi(spedizione, pacchi):
                     "trasportatore": spedizioniere.nome,
                     "totale_con_iva_euro": result_reale["totale_con_iva_euro"],
                     "dettaglio": result_reale["dettaglio"],
-                    "warnings": result_reale.get("warnings", []),
                 })
 
     if preventivi:

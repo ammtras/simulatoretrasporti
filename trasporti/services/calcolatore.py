@@ -95,12 +95,21 @@ class CalcolatriceService:
 
     @staticmethod
     def _scaglioni(context):
+
+        print("=== INIZIO _SCAGLIONI ===")
+        print("context peso_tassabile:", context["peso_tassabile"])
+
+        peso_tassabile = context["peso_tassabile"]
+
+        print("peso_tassabile locale:", peso_tassabile)
+
         spedizione = context["spedizione"]
         pacchi = context["pacchi"]
         zona_get = context["zona"]
         peso_tassabile = context["peso_tassabile"]
         dettaglio = context["dettaglio"]
         ids_supplementi = context.get("ids_supplementi", [])
+
 
 
 
@@ -127,6 +136,9 @@ class CalcolatriceService:
         extra_kg = Decimal("0")
         costo_overflow = Decimal("0")
 
+        print(f'peso tassabile: {peso_tassabile}')
+
+
         if peso_tassabile > soglia:
             extra_kg = peso_tassabile - soglia
             overflow = TariffValidityService.filtra_validita(
@@ -137,6 +149,9 @@ class CalcolatriceService:
                 costo_overflow = ceil(extra_kg / overflow.step_kg) * overflow.price_per_step
 
         pre_base = prezzo + costo_overflow
+        print(f'DDEEBBUUGG prezzo: {prezzo}')
+        print(f'DDEEBBUUGG costo_overflow: {costo_overflow}')
+        print(f'DDEEBBUUGG prebase: {pre_base}')
 
         # 2. CHIAMATA AL SUPPLEMENT ENGINE
         supp = SupplementEngine.calcola_supplementi(
