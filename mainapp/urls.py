@@ -20,4 +20,5 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('trasporti.urls')),
+    path("import-prc/", include("importPRC.urls")),
 ]

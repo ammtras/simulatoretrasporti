@@ -29,6 +29,9 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'controllo_tariffe' %}" >Controllo Tariffe</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'importPRC:tabella_importazioni' %}" >Tabella Importazioni</a>
+                </li>
                 {% if user.is_superuser %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'admin:index' %}" target="_blank">Pannello Admin</a>

@@ -1,1 +1,5 @@
-Django~=5.2.12
+asgiref==3.11.1
+Django==5.2.15
+et_xmlfile==2.0.0
+openpyxl==3.1.5
+sqlparse==0.5.5

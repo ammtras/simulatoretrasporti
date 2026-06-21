@@ -17,11 +17,6 @@ def check_supplemento_applicable(ids_list, spedizione):
         return spedizione.da_nazione == "IT" and spedizione.a_nazione == "IT"
     return True
 
-
-
-# non cancellare è la mia funzione originale
-
-
 def aggiungi_supplementi_automatici_per_zona(ids_list, spedizione, zona_spedizioniere):
     ids_finali = list(ids_list)
 
@@ -178,7 +173,6 @@ def simula_preventivi(spedizione, pacchi):
 
     return preventivi
 
-
 def loggin(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -196,7 +190,7 @@ def loggin(request):
             return redirect('login')
     else:
         #print('url aperto')
-        return render(request, 'login.html', {})
+        return render(request, 'trasporti/login.html', {})
 
 @login_required
 def loggout(request):
@@ -367,7 +361,7 @@ def crea_spedizione(request):
         form = SpedizioneForm(instance=Spedizione(data=timezone.now().date()))
         formset = PaccoFormSet()
 
-    return render(request, "crea_spedizione.html", {
+    return render(request, "trasporti/crea_spedizione.html", {
         "title":title,
         "form": form,
         "formset": formset,
@@ -378,7 +372,7 @@ def crea_spedizione(request):
 
 class spedizioni(LoginRequiredMixin,ListView):
     model = Spedizione
-    template_name = "spedizioni.html"
+    template_name = "trasporti/spedizioni.html"
     context_object_name = "spedizioni"
     ordering = ["-data", "-id"]
 
@@ -517,5 +511,5 @@ def controllo_tariffe(request):
         'sspedizioniere__supplementi',
     ).all()
 
-    return render(request, 'controllo_tariffe.html', {'spedizionieri': spedizionieri,'title':title})
+    return render(request, 'trasporti/controllo_tariffe.html', {'spedizionieri': spedizionieri,'title':title})
 

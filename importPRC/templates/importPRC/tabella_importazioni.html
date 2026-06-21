@@ -1,0 +1,736 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="toolbar">
+    <button id="crea-riga" class="btn btn-primary">Crea riga</button>
+
+    <a class="btn-export btn btn-secondary" href="{% url 'importPRC:esporta_importazioni_excel' %}">
+        Esporta tutto Excel
+    </a>
+
+<a class="btn-export btn btn-secondary" href="{% url 'importPRC:esporta_importazioni_excel_filtrato' %}?{{ request.GET.urlencode }}">
+    Esporta Excel filtrato
+</a>
+<form method="get" class="paginazione-form">
+    <label>Mostra:</label>
+
+    <select name="per_page" onchange="this.form.submit()">
+        <option value="10" {% if per_page == "10" %}selected{% endif %}>10</option>
+        <option value="20" {% if per_page == "20" %}selected{% endif %}>20</option>
+        <option value="30" {% if per_page == "30" %}selected{% endif %}>30</option>
+        <option value="50" {% if per_page == "50" %}selected{% endif %}>50</option>
+        <option value="100" {% if per_page == "100" %}selected{% endif %}>100</option>
+        <option value="all" {% if per_page == "all" %}selected{% endif %}>Tutte</option>
+    </select>
+</form>
+    </div>
+<div class="tabella-wrapper">
+    <table id="tabella-import">
+
+        <thead>
+            <tr>
+                <th rowspan="2" class="fine-gruppo">ID</th>
+                <th colspan="9" class="fine-gruppo">ORDINE</th>
+                <th colspan="4" class="fine-gruppo">TRANSITO / ARRIVO</th>
+                <th colspan="6" class="fine-gruppo">FATTURA DAZI / IVA</th>
+                <th colspan="6" class="fine-gruppo">FATTURA MERCE</th>
+                <th colspan="4" class="fine-gruppo">NOLO IMPORT</th>
+                <th colspan="4" class="fine-gruppo">DOGANA / MRN</th>
+                <th rowspan="2" class="fine-gruppo">NOTE</th>
+            </tr>
+
+            <tr>
+                <th>Ordine <br> Data</th>
+                <th>Ordine <br>Sigla</th>
+                <th>Ordine <br>Fornitore</th>
+                <th>Ordine <br>Descrizione</th>
+                <th>Ordine <br>Pezzi</th>
+                <th>Ordine <br>Preventivo <br> USD</th>
+                <th>Ordine <br>Proforma <br> USD</th>
+                <th>Ordine Acconti Proforme </th>
+                <th class="fine-gruppo"> Ordine <br>Preventivi  <br>Nolo</th>
+
+                <th>Arrivo <br>Spedizioniere</th>
+                <th>Arrivo <br>Anno</th>
+                <th>Arrivo <br>Data </th>
+                <th class="fine-gruppo">Arrivo N.</th>
+
+                <th>Rag. Sociale</th>
+                <th>IVA €</th>
+                <th>Dazio €</th>
+                <th>Costi <br> Accessori €</th>
+                <th>Totale €</th>
+                <th class="fine-gruppo">Prot.N.</th>
+
+                <th>Sigla</th>
+                <th>Rag. Sociale</th>
+                <th>N. Fattura</th>
+                <th>Data <br> Fattura</th>
+                <th>Tot. Pezzi</th>
+                <th class="fine-gruppo">Valore USD</th>
+
+                <th>Prepagato <br> USD</th>
+                <th>Vettore</th>
+                <th>Totale Nolo</th>
+                <th class="fine-gruppo">Prot.N.</th>
+
+                <th class="col-checkbox">Bolla <br> Doganale <br> Classica</th>
+                <th>MRN</th>
+                <th class="col-checkbox">MRN <br> Stampato</th>
+                <th class="fine-gruppo">Prot. N.</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for riga in righe %}
+                <tr data-id="{{ riga.id }}">
+                    <td class="fine-gruppo">{{ riga.id }}</td>
+
+                    <td contenteditable="true" data-campo="ordine_data">{{ riga.ordine_data|date:"d-m-Y" }}</td>
+                    <td contenteditable="true" data-campo="ordine_fornitore_sigla">{{ riga.ordine_fornitore_sigla|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ordine_nome_fornitore">{{ riga.ordine_nome_fornitore|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ordine_descrizione">{{ riga.ordine_descrizione|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ordine_num_pezzi">{{ riga.ordine_num_pezzi|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ordine_preventivo_dollari">{{ riga.ordine_preventivo_dollari|default_if_none:"" }}</td>
+                    <td
+                        contenteditable="true"
+                        data-campo="ordine_proforma_arrivata_dollari"
+                        class="{% if riga.ordine_proforma_arrivata_dollari and riga.ordine_proforma_arrivata_dollari == riga.totale_acconti_usd %}saldo-ok{% endif %}"
+                    >
+                        {{ riga.ordine_proforma_arrivata_dollari|default_if_none:"" }}
+                    </td>
+                    <td class="cella-acconti
+                    {% if riga.ordine_proforma_arrivata_dollari %}
+                        {% if riga.totale_acconti_usd == riga.ordine_proforma_arrivata_dollari %}saldo-ok
+                        {% elif riga.totale_acconti_usd > riga.ordine_proforma_arrivata_dollari %}saldo-ko
+                        {% elif riga.totale_acconti_usd > 0 %}saldo-parziale
+                        {% endif %} {% endif %}">
+
+                        <table class="mini-acconti">
+                            <tbody>
+                                {% for acconto in riga.acconti.all %}
+                                    <tr data-acconto-id="{{ acconto.id }}">
+                                        <td contenteditable="true" class="acconto-field" data-campo="data">
+                                            {{ acconto.data|date:"d/m/y" }}
+                                        </td>
+
+                                        <td contenteditable="true" class="acconto-field" data-campo="valore_usd">
+                                            {{ acconto.valore_usd|default_if_none:"" }}
+                                        </td>
+                                        <td contenteditable="true" class="acconto-field" data-campo="banca">
+                                            {{ acconto.banca|default_if_none:"" }}
+                                        </td>
+                                        <td>
+                                            <button type="button" class="elimina-acconto">×</button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="stato-acconti
+                            {% if riga.totale_acconti_usd == riga.ordine_proforma_arrivata_dollari %}
+                                saldo-ok
+                            {% elif riga.totale_acconti_usd > riga.ordine_proforma_arrivata_dollari %}
+                                saldo-ko
+                            {% elif riga.totale_acconti_usd > 0 %}
+                                saldo-parziale
+                            {% endif %}
+                        ">
+                            {{ riga.stato_acconti }}
+                        </div>
+
+                        <button type="button" class="aggiungi-acconto" data-riga-id="{{ riga.id }}">
+                            + acconto
+                        </button>
+                    </td>
+                    <td contenteditable="true" data-campo="ordine_preventivi_nolo_import" class="cella-multiriga fine-gruppo">{{ riga.ordine_preventivi_nolo_import|default_if_none:"" }}</td>
+
+                    <td contenteditable="true" data-campo="ordine_confermata_spedizione_con_spedizioniere">{{ riga.ordine_confermata_spedizione_con_spedizioniere|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="arrivo_anno">{{ riga.arrivo_anno|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="arrivo_data">{{ riga.arrivo_data|date:"d-m-Y" }}</td>
+                    <td contenteditable="true" data-campo="arrivo_num" class="fine-gruppo">{{ riga.arrivo_num|default_if_none:"" }}</td>
+
+                    <td contenteditable="true" data-campo="ft_dazi_iva_ragione_sociale">{{ riga.ft_dazi_iva_ragione_sociale|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_dazi_iva_iva_euro">{{ riga.ft_dazi_iva_iva_euro|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_dazi_iva_dazio_euro">{{ riga.ft_dazi_iva_dazio_euro|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_dazi_iva_costi_accessori_euro">{{ riga.ft_dazi_iva_costi_accessori_euro|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_dazi_iva_totale">{{ riga.ft_dazi_iva_totale|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_dazi_iva_totale_nostro_prot_numero" class="fine-gruppo">{{ riga.ft_dazi_iva_totale_nostro_prot_numero|default_if_none:"" }}</td>
+
+
+                    <td contenteditable="true" data-campo="ft_merce_fornit_sigla">{{ riga.ft_merce_fornit_sigla|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_merce_fornit_ragione_sociale">{{ riga.ft_merce_fornit_ragione_sociale|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_merce_num">{{ riga.ft_merce_num|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_merce_data">{{ riga.ft_merce_data|date:"Y-m-d" }}</td>
+                    <td contenteditable="true" data-campo="ft_merce_tot_pz">{{ riga.ft_merce_tot_pz|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="ft_valore_usd" class="fine-gruppo">{{ riga.ft_valore_usd|default_if_none:"" }}</td>
+
+                    <td contenteditable="true" data-campo="nolo_se_prepagato_in_ft_usd">{{ riga.nolo_se_prepagato_in_ft_usd|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="nolo_vettore_nome">{{ riga.nolo_vettore_nome|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="nolo_ft_totale">{{ riga.nolo_ft_totale|default_if_none:"" }}</td>
+                    <td contenteditable="true" data-campo="nolo_ft_nostro_prot_numero" class="fine-gruppo">{{ riga.nolo_ft_nostro_prot_numero|default_if_none:"" }}</td>
+
+
+
+                    <td class="col-checkbox">
+                        <input
+                            type="checkbox"
+                            class="boolean-field"
+                            data-campo="ader_bolla_doganale_classica"
+                            {% if riga.ader_bolla_doganale_classica %}checked{% endif %}
+                        >
+                    </td>
+                    <td contenteditable="true" data-campo="ader_MRN_codice">{{ riga.ader_MRN_codice|default_if_none:"" }}</td>
+                    <td class="col-checkbox">
+                        <input
+                            type="checkbox"
+                            class="boolean-field"
+                            data-campo="ader_stampato_mrn_da_ader"
+                            {% if riga.ader_stampato_mrn_da_ader %}checked{% endif %}
+                        >
+                    </td>
+                    <td contenteditable="true" data-campo="ader_nostro_prot_num" class="fine-gruppo">{{ riga.ader_nostro_prot_num|default_if_none:"" }}</td>
+
+                    <td contenteditable="true" data-campo="note" class="cella-multiriga fine-gruppo">{{ riga.note|default_if_none:"" }}</td>
+                </tr>
+            {% endfor %}
+        <tr class="riga-totali">
+    <td>TOTALI</td>
+
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+
+    <td>{{ totali.ordine_totale_pezzi }}</td>
+
+    <td>$ {{ totali.ordine_preventivi_totale_dollari }}</td>
+
+    <td>$ {{ totali.ordine_proforme_totale_dollari }}</td>
+
+    <td>
+        Pagati: $ {{ totali.totale_acconti_pagati }}<br>
+        Da pagare: $ {{ totali.totale_da_pagare }}
+    </td>
+
+    <td></td>
+
+    <!-- ARRIVO -->
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+
+    <!-- FATTURA DAZI / IVA -->
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+
+    <!-- FATTURA MERCE -->
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+
+    <!-- NOLO IMPORT -->
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+
+    <!-- DOGANA / MRN -->
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+
+    <!-- NOTE -->
+    <td></td>
+</tr>
+        </tbody>
+
+    </table>
+</div>
+
+
+{% if page_obj %}
+    <div class="paginazione">
+        {% if page_obj.has_previous %}
+            <a href="?page=1&per_page={{ per_page }}">« Prima</a>
+            <a href="?page={{ page_obj.previous_page_number }}&per_page={{ per_page }}">‹ Precedente</a>
+        {% endif %}
+
+        <span>
+            Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&per_page={{ per_page }}">Successiva ›</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&per_page={{ per_page }}">Ultima »</a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<style>
+    .cella-multiriga {
+        white-space: pre-wrap;
+        min-width: 250px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .riga-totali td {
+        background: #fff3cd !important;
+        font-weight: bold;
+        border-top: 3px solid #000 !important;
+
+        height: auto !important;
+        min-height: 80px;
+
+        padding-top: 10px;
+        padding-bottom: 10px;
+
+        white-space: normal !important;
+        vertical-align: top;
+    }
+
+    .fine-gruppo {
+        border-right: 4px solid #000 !important;
+    }
+
+    .paginazione-form {
+        margin-bottom: 10px;
+    }
+
+    .paginazione {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .paginazione a {
+        padding: 5px 9px;
+        border: 1px solid #777;
+        text-decoration: none;
+        color: #000;
+        background: #f3f3f3;
+        border-radius: 4px;
+    }
+
+    .saldo-ok {
+    background-color: #c6efce !important;
+    }
+
+    .saldo-ko {
+        background-color: #ffc7ce !important;
+    }
+
+    .saldo-parziale {
+        background-color: #ffeb9c !important;
+    }
+
+    .cella-acconti {
+        min-width: 300px;
+        white-space: normal;
+    }
+
+    .mini-acconti {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+    }
+
+    .mini-acconti td {
+        border: 1px solid #bbb;
+        padding: 2px 4px;
+        min-width: 60px;
+        height: 24px;
+    }
+
+    .aggiungi-acconto {
+        margin-top: 4px;
+        font-size: 11px;
+        padding: 2px 6px;
+    }
+
+    .elimina-acconto {
+        font-size: 12px;
+        padding: 1px 5px;
+        cursor: pointer;
+    }
+
+    .stato-acconti {
+        margin-top: 4px;
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+    .saldo-ok {
+        background-color: #c6efce;
+        color: #006100;
+    }
+
+    .saldo-parziale {
+        background-color: #ffeb9c;
+        color: #9c6500;
+    }
+
+    .saldo-ko {
+        background-color: #ffc7ce;
+        color: #9c0006;
+    }
+
+    td input[type="checkbox"] {
+        transform: scale(1.3);
+        cursor: pointer;
+    }
+
+    .toolbar {
+        margin-bottom: 12px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+
+
+    .tabella-wrapper {
+        width: 100%;
+        overflow: auto;
+        height: 85vh;
+    }
+
+    body {
+        margin: 0;
+    }
+
+    .container,
+    .content,
+    .main-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+
+    #tabella-import {
+        border-collapse: collapse;
+        width: max-content;
+        min-width: 100%;
+        margin-bottom: 20px;
+    }
+
+
+
+
+    #tabella-import thead th {
+        white-space: normal;
+        line-height: 1.1;
+        padding: 4px;
+        position: sticky;
+        z-index: 5;
+    }
+
+    #tabella-import td {
+        border: 1px solid #999;
+        padding: 4px 6px;
+        text-align: center;
+        vertical-align: middle;
+        height: 34px;
+        white-space: nowrap;
+    }
+
+
+
+    #tabella-import thead tr:first-child th {
+        top: 0;
+        height: 34px;
+        background: #d9e8fb;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    #tabella-import thead tr:nth-child(2) th {
+        top: 34px;
+        height: 34px;
+        background: #eef5ff;
+        font-size: 12px;
+    }
+
+    #tabella-import tbody td {
+        white-space: nowrap;
+    }
+
+    #tabella-import tbody tr:first-child td {
+        border-top: 3px solid #666;
+    }
+
+
+    .tabella-wrapper {
+        width: 100%;
+        overflow: auto;
+        height: 85vh;
+    }
+
+    body {
+        margin: 0;
+    }
+
+    .container,
+    .content,
+    .main-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+
+    #tabella-import {
+        border-collapse: collapse;
+        width: max-content;
+        min-width: 100%;
+    }
+
+
+    #tabella-import thead th {
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: normal;
+        line-height: 1.1;
+    }
+
+    #tabella-import td {
+        border: 1px solid #999;
+        padding: 4px 6px;
+        text-align: center;
+        vertical-align: middle;
+        height: 34px;
+        white-space: nowrap;
+    }
+
+
+
+    #tabella-import thead tr:first-child th {
+        top: 0;
+        height: 34px;
+        background: #d9e8fb;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    #tabella-import thead tr:nth-child(2) th {
+        top: 34px;
+        height: 34px;
+        background: #eef5ff;
+        font-size: 12px;
+    }
+
+    #tabella-import tbody td {
+        white-space: nowrap;
+    }
+
+    #tabella-import tbody tr:first-child td {
+        border-top: 3px solid #666;
+    }
+
+    .col-checkbox {
+        width: 65px;
+        min-width: 65px;
+        max-width: 65px;
+    }
+
+    #tabella-import td.cella-multiriga {
+        white-space: pre-wrap !important;
+        min-width: 250px;
+        text-align: left;
+        vertical-align: top;
+    }
+</style>
+
+<script>
+
+    function getCookie(name) {
+        let cookieValue = null;
+
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+
+                if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie("csrftoken");
+
+    document.addEventListener("blur", function(e) {
+        if (!e.target.matches("td[contenteditable='true']")) return;
+
+        const td = e.target;
+        const tr = td.closest("tr");
+
+        const id = tr.dataset.id;
+        const campo = td.dataset.campo;
+        const valore = td.innerText;
+
+        fetch("{% url 'importPRC:aggiorna_cella_importazione' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+                id: id,
+                campo: campo,
+                valore: valore,
+            })
+        });
+    }, true);
+
+    document.getElementById("crea-riga").addEventListener("click", function() {
+        fetch("{% url 'importPRC:crea_riga_importazione' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                location.reload();
+            }
+        });
+    });
+
+    document.addEventListener("change", function(e) {
+        if (!e.target.matches(".boolean-field")) return;
+
+        const checkbox = e.target;
+        const tr = checkbox.closest("tr");
+
+        const id = tr.dataset.id;
+        const campo = checkbox.dataset.campo;
+        const valore = checkbox.checked ? "true" : "false";
+
+        fetch("{% url 'importPRC:aggiorna_cella_importazione' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+                id: id,
+                campo: campo,
+                valore: valore,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.ok) {
+                alert(data.errore);
+            }
+        });
+    });
+
+    document.addEventListener("click", function(e) {
+        if (!e.target.matches(".aggiungi-acconto")) return;
+
+        const ordineId = e.target.dataset.rigaId;
+
+        fetch("{% url 'importPRC:crea_acconto' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+                ordine_id: ordineId,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                location.reload();
+            } else {
+                alert(data.errore);
+            }
+        });
+    });
+
+
+    document.addEventListener("blur", function(e) {
+        if (!e.target.matches(".acconto-field")) return;
+
+        const td = e.target;
+        const tr = td.closest("tr");
+
+        fetch("{% url 'importPRC:aggiorna_acconto' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+                id: tr.dataset.accontoId,
+                campo: td.dataset.campo,
+                valore: td.innerText.trim(),
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.ok) {
+                alert(data.errore);
+            }
+        });
+    }, true);
+
+
+    document.addEventListener("click", function(e) {
+
+    if (!e.target.matches(".elimina-acconto")) return;
+
+        const conferma = confirm(
+            "Sei sicuro di voler eliminare questo acconto?"
+        );
+
+        if (!conferma) {
+            return;
+        }
+
+        const tr = e.target.closest("tr");
+
+        fetch("{% url 'importPRC:elimina_acconto' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+                id: tr.dataset.accontoId,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+
+            if (data.ok) {
+                tr.remove();
+            } else {
+                alert(data.errore);
+            }
+
+        });
+
+    });
+</script>
+
+{% endblock %}
