@@ -101,7 +101,7 @@
                         {{ riga.ordine_proforma_arrivata_dollari|default_if_none:"" }}
                     </td>
                     <td class="cella-acconti
-                    {% if riga.ordine_proforma_arrivata_dollari %}
+                    {% if riga.ordine_proforma_arrivata_dollari and riga.ordine_proforma_arrivata_dollari > 0 %}
                         {% if riga.totale_acconti_usd == riga.ordine_proforma_arrivata_dollari %}saldo-ok
                         {% elif riga.totale_acconti_usd > riga.ordine_proforma_arrivata_dollari %}saldo-ko
                         {% elif riga.totale_acconti_usd > 0 %}saldo-parziale
@@ -122,7 +122,7 @@
                                             {{ acconto.banca|default_if_none:"" }}
                                         </td>
                                         <td>
-                                            <button type="button" class="elimina-acconto">×</button>
+                                            <button type="button" class="btn btn-sm btn-danger elimina-acconto">×</button>
                                         </td>
                                     </tr>
                                 {% endfor %}
@@ -140,7 +140,7 @@
                             {{ riga.stato_acconti }}
                         </div>
 
-                        <button type="button" class="aggiungi-acconto" data-riga-id="{{ riga.id }}">
+                        <button type="button" class="btn btn-sm btn-primary aggiungi-acconto" data-riga-id="{{ riga.id }}">
                             + acconto
                         </button>
                     </td>
@@ -344,7 +344,7 @@
     .mini-acconti {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px;
+        font-size: 12px;
     }
 
     .mini-acconti td {
@@ -354,11 +354,7 @@
         height: 24px;
     }
 
-    .aggiungi-acconto {
-        margin-top: 4px;
-        font-size: 11px;
-        padding: 2px 6px;
-    }
+
 
     .elimina-acconto {
         font-size: 12px;
@@ -368,7 +364,7 @@
 
     .stato-acconti {
         margin-top: 4px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: bold;
     }
 

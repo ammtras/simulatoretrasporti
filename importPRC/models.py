@@ -64,6 +64,9 @@ class OrdineImportazione(models.Model):
         proforma = self.ordine_proforma_arrivata_dollari or Decimal("0")
         pagato = self.totale_acconti_usd
 
+        if proforma == 0 and pagato == 0:
+            return ""
+
         differenza = pagato - proforma
 
         if differenza == 0:
