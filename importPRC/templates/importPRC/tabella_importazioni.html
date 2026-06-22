@@ -205,13 +205,13 @@
 
     <td>{{ totali.ordine_totale_pezzi }}</td>
 
-    <td>$ {{ totali.ordine_preventivi_totale_dollari }}</td>
+    <td>$ {{ totali.ordine_preventivi_totale_dollari|floatformat:2 }}</td>
 
-    <td>$ {{ totali.ordine_proforme_totale_dollari }}</td>
+    <td>$ {{ totali.ordine_proforme_totale_dollari|floatformat:2 }}</td>
 
     <td>
-        Pagati: $ {{ totali.totale_acconti_pagati }}<br>
-        Da pagare: $ {{ totali.totale_da_pagare }}
+        Pagati: $ {{ totali.totale_acconti_pagati|floatformat:2 }}<br>
+        Da pagare: $ {{ totali.totale_da_pagare|floatformat:2 }}
     </td>
 
     <td></td>
