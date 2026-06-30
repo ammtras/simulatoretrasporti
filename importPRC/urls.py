@@ -14,4 +14,6 @@ urlpatterns = [
     path("crea-acconto/", crea_acconto, name="crea_acconto"),
     path("aggiorna-acconto/", aggiorna_acconto, name="aggiorna_acconto"),
     path("elimina-acconto/", elimina_acconto, name="elimina_acconto"),
+    path("stampa-dettaglio/<int:ordine_id>/", stampa_dettaglio, name="stampa_dettaglio"),
+
     ]

@@ -413,3 +413,77 @@ def elimina_acconto(request):
     acconto.delete()
 
     return JsonResponse({"ok": True})
+
+
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+
+from .models import OrdineImportazione
+
+
+def valore(v):
+    if v is None:
+        return ""
+    return str(v)
+
+
+def stampa_dettaglio(request, ordine_id):
+    ordine = get_object_or_404(
+        OrdineImportazione.objects.prefetch_related("acconti"),
+        id=ordine_id
+    )
+
+    testo = f"""
+    DETTAGLIO IMPORTAZIONE 
+    
+    ====================
+    MRN
+    ====================
+    {valore(ordine.ader_MRN_codice)}
+    
+    ====================
+    ARRIVO
+    ====================
+    Anno arrivo: {valore(ordine.arrivo_anno)}
+    Data arrivo: {valore(ordine.arrivo_data)}
+    
+    ====================
+    FATTURA DAZI / IVA
+    ====================
+    Ragione sociale: {valore(ordine.ft_dazi_iva_ragione_sociale)}
+    IVA euro: {valore(ordine.ft_dazi_iva_iva_euro)}
+    Dazio euro: {valore(ordine.ft_dazi_iva_dazio_euro)}
+    Costi accessori euro: {valore(ordine.ft_dazi_iva_costi_accessori_euro)}
+    Totale euro: {valore(ordine.ft_dazi_iva_totale)}
+    Nostro prot. N.: {valore(ordine.ft_dazi_iva_totale_nostro_prot_numero)}
+    
+    ====================
+    FATTURA MERCE
+    ====================
+    Ragione sociale: {valore(ordine.ft_merce_fornit_ragione_sociale)}
+    Numero fattura: {valore(ordine.ft_merce_num)}
+    Data fattura: {valore(ordine.ft_merce_data)}
+    Totale pezzi: {valore(ordine.ft_merce_tot_pz)}
+    Valore USD: {valore(ordine.ft_valore_usd)}
+    
+    ====================
+    NOLO IMPORT SE PREPAGATO IN FATTURA
+    ====================
+    Nolo prepagato in fattura USD: {valore(ordine.nolo_se_prepagato_in_ft_usd)}
+    
+    ====================
+    FATTURA NOLO IMPORT (NON PREPAGATO)
+    ====================
+    Vettore: {valore(ordine.nolo_vettore_nome)}
+    Totale fattura nolo: {valore(ordine.nolo_ft_totale)}
+    Nostro prot. N.: {valore(ordine.nolo_ft_nostro_prot_numero)}
+    
+    ====================
+    NOTE
+    ====================
+    {valore(ordine.note)}
+    """
+
+    response = HttpResponse(testo, content_type="text/plain; charset=utf-8")
+    response["Content-Disposition"] = f'inline; filename="ordine_importazione_{ordine.id}.txt"'
+    return response

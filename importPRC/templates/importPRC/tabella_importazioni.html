@@ -85,7 +85,11 @@
         <tbody>
             {% for riga in righe %}
                 <tr data-id="{{ riga.id }}">
-                    <td class="fine-gruppo">{{ riga.id }}</td>
+                    <td class="fine-gruppo">{{ riga.id }} <br>
+                        <a href="{% url 'importPRC:stampa_dettaglio' riga.id %}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Stampa <br> Dettaglio
+                        </a>
+                    </td>
 
                     <td contenteditable="true" data-campo="ordine_data">{{ riga.ordine_data|date:"d-m-Y" }}</td>
                     <td contenteditable="true" data-campo="ordine_fornitore_sigla">{{ riga.ordine_fornitore_sigla|default_if_none:"" }}</td>

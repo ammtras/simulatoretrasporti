@@ -7,6 +7,6 @@ urlpatterns = [
     path('crea_spedizione', crea_spedizione, name='crea_spedizione'),
     path('logout', loggout, name='logout'),
     path("spedizioni/", spedizioni.as_view(), name="spedizioni"),
-    path("controllo_tariffe",controllo_tariffe, name="controllo_tariffe" ),
+    path("controllo_tariffe",controllo_tariffe, name="controllo_tariffe"),
 
 ]
