@@ -10,6 +10,7 @@ venv/
 
 # Database
 20260629db.sqlite3
+db.sqlite3
 
 # Static folder at project root
 /static/
