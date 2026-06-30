@@ -441,21 +441,13 @@ def stampa_dettaglio(request, ordine_id):
     ====================
     {valore(ordine.ader_MRN_codice)}
     
+    
     ====================
     ARRIVO
     ====================
     Anno arrivo: {valore(ordine.arrivo_anno)}
     Data arrivo: {valore(ordine.arrivo_data)}
     
-    ====================
-    FATTURA DAZI / IVA
-    ====================
-    Ragione sociale: {valore(ordine.ft_dazi_iva_ragione_sociale)}
-    IVA euro: {valore(ordine.ft_dazi_iva_iva_euro)}
-    Dazio euro: {valore(ordine.ft_dazi_iva_dazio_euro)}
-    Costi accessori euro: {valore(ordine.ft_dazi_iva_costi_accessori_euro)}
-    Totale euro: {valore(ordine.ft_dazi_iva_totale)}
-    Nostro prot. N.: {valore(ordine.ft_dazi_iva_totale_nostro_prot_numero)}
     
     ====================
     FATTURA MERCE
@@ -466,17 +458,39 @@ def stampa_dettaglio(request, ordine_id):
     Totale pezzi: {valore(ordine.ft_merce_tot_pz)}
     Valore USD: {valore(ordine.ft_valore_usd)}
     
+    
+    ====================
+    FATTURA DAZI / IVA
+    ====================
+    Ragione sociale: {valore(ordine.ft_dazi_iva_ragione_sociale)}
+    IVA euro: {valore(ordine.ft_dazi_iva_iva_euro)}
+    Dazio euro: {valore(ordine.ft_dazi_iva_dazio_euro)}
+    Costi accessori euro: {valore(ordine.ft_dazi_iva_costi_accessori_euro)}
+    Totale euro: {valore(ordine.ft_dazi_iva_totale)}
+    Nostro prot. N.: {valore(ordine.ft_dazi_iva_totale_nostro_prot_numero)}
+    """
+
+    if (ordine.nolo_se_prepagato_in_ft_usd or Decimal("0")) > Decimal("0.00"):
+        testo += f"""
+        
     ====================
     NOLO IMPORT SE PREPAGATO IN FATTURA
     ====================
     Nolo prepagato in fattura USD: {valore(ordine.nolo_se_prepagato_in_ft_usd)}
-    
+    """
+
+    if (ordine.nolo_ft_totale or Decimal("0")) > Decimal("0.00"):
+        testo += f"""
+        
     ====================
     FATTURA NOLO IMPORT (NON PREPAGATO)
     ====================
     Vettore: {valore(ordine.nolo_vettore_nome)}
     Totale fattura nolo: {valore(ordine.nolo_ft_totale)}
     Nostro prot. N.: {valore(ordine.nolo_ft_nostro_prot_numero)}
+    """
+
+    testo += f"""
     
     ====================
     NOTE
