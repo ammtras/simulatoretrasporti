@@ -11,6 +11,10 @@ from django.db.models import Q
 from django.contrib.auth.mixins import LoginRequiredMixin
 from datetime import timedelta
 from trasporti.services.calcolatore import CalcolatriceService
+from django.http import HttpResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font
+import re
 
 def check_supplemento_applicable(ids_list, spedizione):
     if sup.tipo_servizio.codice == "CONTR":
@@ -513,3 +517,561 @@ def controllo_tariffe(request):
 
     return render(request, 'trasporti/controllo_tariffe.html', {'spedizionieri': spedizionieri,'title':title})
 
+def estrai_decimal_da_stringa(value):
+    value = str(value)
+    value = re.sub(r"<[^>]*>", "", value)
+    value = value.replace("€", "").replace("kg", "").replace("%", "")
+    value = value.replace(",", ".")
+    numeri = re.findall(r"\d+(?:\.\d+)?", value)
+
+    if numeri:
+        return Decimal(numeri[-1])
+
+    return Decimal("0")
+
+#export per controllo fatture GLS
+@login_required
+def xxesporta_spedizioni_excel(request):
+    view = spedizioni()
+    view.request = request
+
+    #queryset = view.get_queryset().prefetch_related("pacchi", "supplementi")
+    queryset = (view.get_queryset().order_by("data", "id").prefetch_related("pacchi", "supplementi"))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Spedizioni"
+
+    riga = 1
+
+
+    headers = [
+        "Data",
+        "Cliente da",
+        "Cliente a",
+        "Totale colli",
+        "Peso reale kg",
+        "Peso volume kg",
+        "Nolo €",
+        "Contrassegno €",
+        "Assicurazione €",
+        "Fuel €",
+        "Fuel %",
+    ]
+
+    for col, header in enumerate(headers, start=1):
+        ws.cell(riga, col, header).font = Font(bold=True)
+
+    riga += 1
+
+    # Memorizza la prima riga dei dati
+    prima_riga_dati = riga
+
+    for s in queryset:
+        pacchi_list = [
+            {
+                "altezza_cm": p.altezza_cm,
+                "larghezza_cm": p.larghezza_cm,
+                "profondita_cm": p.profondita_cm,
+                "peso_kg": p.peso_kg,
+            }
+            for p in s.pacchi.all()
+        ]
+
+        result = None
+
+        if s.trasportatore_scelto and s.zona_tariffazione_spedizioniere:
+            result = CalcolatriceService.calcola(s, pacchi_list)
+
+        dettaglio_items = (
+            result.get("dettaglio", {}).get("items", [])
+            if result
+            else []
+        )
+
+        peso_reale = sum(
+            Decimal(str(p.get("peso_kg") or 0))
+            for p in pacchi_list
+        )
+
+        peso_volume = Decimal("0")
+        nolo = Decimal("0")
+        costo_contrassegno = Decimal("0")
+        costo_assicurazione = Decimal("0")
+        fuel_euro = Decimal("0")
+        fuel_percentuale = ""
+
+        for item in dettaglio_items:
+            label = str(item.get("label", "")).lower()
+            value = str(item.get("value", ""))
+
+            if "peso volume" in label:
+                peso_volume = estrai_decimal_da_stringa(value)
+
+            elif "nolo" in label:
+                nolo = estrai_decimal_da_stringa(value)
+
+            elif "scaglione" in label:
+                nolo = estrai_decimal_da_stringa(value)
+
+            elif "supplementi" in label:
+                righe = value.split("<br>")
+
+                for r in righe:
+                    r_lower = r.lower()
+
+                    if "contr" in r_lower:
+                        costo_contrassegno += estrai_decimal_da_stringa(r)
+
+                    elif "assic" in r_lower or "assicurazione" in r_lower:
+                        costo_assicurazione += estrai_decimal_da_stringa(r)
+
+                    elif "fuel" in r_lower:
+                        fuel_euro += estrai_decimal_da_stringa(r)
+
+                        match = re.search(r"\(([\d.,]+)%\)", r)
+                        if match:
+                            fuel_percentuale = match.group(1).replace(",", ".")
+
+        ws.cell(riga, 1, s.data)
+        ws.cell(riga, 2, s.da_cliente_citta)
+        ws.cell(riga, 3, s.a_cliente_citta)
+        ws.cell(riga, 4, s.pacchi.count())
+        ws.cell(riga, 5, float(peso_reale))
+        ws.cell(riga, 6, float(peso_volume))
+        ws.cell(riga, 7, float(nolo))
+        ws.cell(riga, 8, float(costo_contrassegno))
+        ws.cell(riga, 9, float(costo_assicurazione))
+        ws.cell(riga, 10, float(fuel_euro))
+        ws.cell(riga, 11, fuel_percentuale)
+
+        riga += 1
+
+    ultima_riga_dati = riga - 1
+    ws.cell(riga, 1, f"Spedizioni: {queryset.count()}").font = Font(bold=True)
+    ws.cell(riga, 6, "TOTALI").font = Font(bold=True)
+    ws.cell(riga, 7, f"=SUM(G{prima_riga_dati}:G{ultima_riga_dati})")
+    ws.cell(riga, 8, f"=SUM(H{prima_riga_dati}:H{ultima_riga_dati})")
+    ws.cell(riga, 9, f"=SUM(I{prima_riga_dati}:I{ultima_riga_dati})")
+    ws.cell(riga, 10, f"=SUM(J{prima_riga_dati}:J{ultima_riga_dati})")
+
+    for c in range(6, 11):
+        ws.cell(riga, c).font = Font(bold=True)
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="spedizioni.xlsx"'
+
+    wb.save(response)
+    return response
+
+def YYesporta_spedizioni_excel(request):
+    view = spedizioni()
+    view.request = request
+
+    queryset = (
+        view.get_queryset()
+        .order_by("data", "id")
+        .prefetch_related("pacchi", "supplementi")
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Spedizioni"
+
+    riga = 1
+
+    headers = [
+        "Data",
+        "Cliente da",
+        "Cliente a",
+        "Totale colli",
+        "Peso reale kg",
+        "Peso volume kg",
+        "Nolo €",
+        "Contrassegno €",
+        "Assicurazione €",
+        "Fuel €",
+        "Fuel %",
+    ]
+
+    for col, header in enumerate(headers, start=1):
+        ws.cell(riga, col, header).font = Font(bold=True)
+
+    riga += 1
+    prima_riga_dati = riga
+
+    riepilogo_per_data = {}
+
+    for s in queryset:
+        pacchi_list = [
+            {
+                "altezza_cm": p.altezza_cm,
+                "larghezza_cm": p.larghezza_cm,
+                "profondita_cm": p.profondita_cm,
+                "peso_kg": p.peso_kg,
+            }
+            for p in s.pacchi.all()
+        ]
+
+        result = None
+
+        if s.trasportatore_scelto and s.zona_tariffazione_spedizioniere:
+            result = CalcolatriceService.calcola(s, pacchi_list)
+
+        dettaglio_items = (
+            result.get("dettaglio", {}).get("items", [])
+            if result
+            else []
+        )
+
+        peso_reale = sum(
+            Decimal(str(p.get("peso_kg") or 0))
+            for p in pacchi_list
+        )
+
+        peso_volume = Decimal("0")
+        nolo = Decimal("0")
+        costo_contrassegno = Decimal("0")
+        costo_assicurazione = Decimal("0")
+        fuel_euro = Decimal("0")
+        fuel_percentuale = ""
+
+        for item in dettaglio_items:
+            label = str(item.get("label", "")).lower()
+            value = str(item.get("value", ""))
+
+            if "peso volume" in label:
+                peso_volume = estrai_decimal_da_stringa(value)
+
+            elif "nolo" in label:
+                nolo = estrai_decimal_da_stringa(value)
+
+            elif "scaglione" in label:
+                nolo = estrai_decimal_da_stringa(value)
+
+            elif "supplementi" in label:
+                righe = value.split("<br>")
+
+                for r in righe:
+                    r_lower = r.lower()
+
+                    if "contr" in r_lower:
+                        costo_contrassegno += estrai_decimal_da_stringa(r)
+
+                    elif "assic" in r_lower or "assicurazione" in r_lower:
+                        costo_assicurazione += estrai_decimal_da_stringa(r)
+
+                    elif "fuel" in r_lower:
+                        fuel_euro += estrai_decimal_da_stringa(r)
+
+                        match = re.search(r"\(([\d.,]+)%\)", r)
+                        if match:
+                            fuel_percentuale = match.group(1).replace(",", ".")
+
+        ws.cell(riga, 1, s.data)
+        ws.cell(riga, 2, s.da_cliente_citta)
+        ws.cell(riga, 3, s.a_cliente_citta)
+        ws.cell(riga, 4, s.pacchi.count())
+        ws.cell(riga, 5, float(peso_reale))
+        ws.cell(riga, 6, float(peso_volume))
+        ws.cell(riga, 7, float(nolo))
+        ws.cell(riga, 8, float(costo_contrassegno))
+        ws.cell(riga, 9, float(costo_assicurazione))
+        ws.cell(riga, 10, float(fuel_euro))
+        ws.cell(riga, 11, fuel_percentuale)
+
+        data_key = s.data
+
+        if data_key not in riepilogo_per_data:
+            riepilogo_per_data[data_key] = {
+                "numero_spedizioni": 0,
+                "totale_colli": 0,
+                "nolo": Decimal("0"),
+                "contrassegno": Decimal("0"),
+                "assicurazione": Decimal("0"),
+                "fuel": Decimal("0"),
+            }
+
+        riepilogo_per_data[data_key]["numero_spedizioni"] += 1
+        riepilogo_per_data[data_key]["totale_colli"] += s.pacchi.count()
+        riepilogo_per_data[data_key]["nolo"] += nolo
+        riepilogo_per_data[data_key]["contrassegno"] += costo_contrassegno
+        riepilogo_per_data[data_key]["assicurazione"] += costo_assicurazione
+        riepilogo_per_data[data_key]["fuel"] += fuel_euro
+
+        riga += 1
+
+    ultima_riga_dati = riga - 1
+
+    ws.cell(riga, 1, f"Spedizioni: {queryset.count()}").font = Font(bold=True)
+    ws.cell(riga, 6, "TOTALI").font = Font(bold=True)
+    ws.cell(riga, 7, f"=SUM(G{prima_riga_dati}:G{ultima_riga_dati})")
+    ws.cell(riga, 8, f"=SUM(H{prima_riga_dati}:H{ultima_riga_dati})")
+    ws.cell(riga, 9, f"=SUM(I{prima_riga_dati}:I{ultima_riga_dati})")
+    ws.cell(riga, 10, f"=SUM(J{prima_riga_dati}:J{ultima_riga_dati})")
+
+    for c in range(1, 11):
+        ws.cell(riga, c).font = Font(bold=True)
+
+    riga += 3
+
+    ws.cell(riga, 1, "Riepilogo per giorno").font = Font(bold=True)
+    riga += 1
+
+    headers_riepilogo = [
+        "Data",
+        "Numero spedizioni",
+        "Nolo €",
+        "Contrassegno €",
+        "Assicurazione €",
+        "Fuel €",
+    ]
+
+    for col, header in enumerate(headers_riepilogo, start=1):
+        ws.cell(riga, col, header).font = Font(bold=True)
+
+    riga += 1
+    prima_riga_riepilogo = riga
+
+    for data_key in sorted(riepilogo_per_data.keys()):
+        dati = riepilogo_per_data[data_key]
+
+        ws.cell(riga, 1, data_key)
+        ws.cell(riga, 2, dati["numero_spedizioni"])
+        ws.cell(riga, 3, float(dati["nolo"]))
+        ws.cell(riga, 4, float(dati["contrassegno"]))
+        ws.cell(riga, 5, float(dati["assicurazione"]))
+        ws.cell(riga, 6, float(dati["fuel"]))
+
+        riga += 1
+
+    ultima_riga_riepilogo = riga - 1
+
+    ws.cell(riga, 1, "TOTALI").font = Font(bold=True)
+    ws.cell(riga, 2, f"=SUM(B{prima_riga_riepilogo}:B{ultima_riga_riepilogo})")
+    ws.cell(riga, 3, f"=SUM(C{prima_riga_riepilogo}:C{ultima_riga_riepilogo})")
+    ws.cell(riga, 4, f"=SUM(D{prima_riga_riepilogo}:D{ultima_riga_riepilogo})")
+    ws.cell(riga, 5, f"=SUM(E{prima_riga_riepilogo}:E{ultima_riga_riepilogo})")
+    ws.cell(riga, 6, f"=SUM(F{prima_riga_riepilogo}:F{ultima_riga_riepilogo})")
+    ws.cell(riga, 7, f"=SUM(G{prima_riga_riepilogo}:G{ultima_riga_riepilogo})")
+
+    for c in range(1, 10):
+        ws.cell(riga, c).font = Font(bold=True)
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="spedizioni.xlsx"'
+
+    wb.save(response)
+    return response
+
+def esporta_spedizioni_excel(request):
+    view = spedizioni()
+    view.request = request
+
+    queryset = (
+        view.get_queryset()
+        .order_by("data", "id")
+        .prefetch_related("pacchi", "supplementi")
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Spedizioni"
+
+    riga = 1
+
+    headers = [
+        "Data",
+        "Cliente da",
+        "Cliente a",
+        "Totale colli",
+        "Peso reale kg",
+        "Peso volume kg",
+        "Nolo €",
+        "Contrassegno €",
+        "Assicurazione €",
+        "Fuel €",
+        "Fuel %",
+    ]
+
+    for col, header in enumerate(headers, start=1):
+        ws.cell(riga, col, header).font = Font(bold=True)
+
+    riga += 1
+    prima_riga_dati = riga
+
+    riepilogo_per_data = {}
+
+    for s in queryset:
+        pacchi_list = [
+            {
+                "altezza_cm": p.altezza_cm,
+                "larghezza_cm": p.larghezza_cm,
+                "profondita_cm": p.profondita_cm,
+                "peso_kg": p.peso_kg,
+            }
+            for p in s.pacchi.all()
+        ]
+
+        result = None
+
+        if s.trasportatore_scelto and s.zona_tariffazione_spedizioniere:
+            result = CalcolatriceService.calcola(s, pacchi_list)
+
+        dettaglio_items = (
+            result.get("dettaglio", {}).get("items", [])
+            if result
+            else []
+        )
+
+        peso_reale = sum(
+            Decimal(str(p.get("peso_kg") or 0))
+            for p in pacchi_list
+        )
+
+        peso_volume = Decimal("0")
+        nolo = Decimal("0")
+        costo_contrassegno = Decimal("0")
+        costo_assicurazione = Decimal("0")
+        fuel_euro = Decimal("0")
+        fuel_percentuale = ""
+
+        for item in dettaglio_items:
+            label = str(item.get("label", "")).lower()
+            value = str(item.get("value", ""))
+
+            if "peso volume" in label:
+                # Prende il valore prima di "kg", non il divisore
+                match = re.search(r"([\d.,]+)\s*kg", value)
+                if match:
+                    peso_volume = Decimal(match.group(1).replace(",", "."))
+                else:
+                    peso_volume = estrai_decimal_da_stringa(value)
+
+            elif "nolo" in label:
+                nolo = estrai_decimal_da_stringa(value)
+
+            elif "scaglione" in label:
+                nolo = estrai_decimal_da_stringa(value)
+
+            elif "supplementi" in label:
+                righe = value.split("<br>")
+
+                for r in righe:
+                    r_lower = r.lower()
+
+                    if "contr" in r_lower:
+                        costo_contrassegno += estrai_decimal_da_stringa(r)
+
+                    elif "assic" in r_lower or "assicurazione" in r_lower:
+                        costo_assicurazione += estrai_decimal_da_stringa(r)
+
+                    elif "fuel" in r_lower:
+                        fuel_euro += estrai_decimal_da_stringa(r)
+
+                        match = re.search(r"\(([\d.,]+)%\)", r)
+                        if match:
+                            fuel_percentuale = match.group(1).replace(",", ".")
+
+        ws.cell(riga, 1, s.data)
+        ws.cell(riga, 2, s.da_cliente_citta)
+        ws.cell(riga, 3, s.a_cliente_citta)
+        ws.cell(riga, 4, s.pacchi.count())
+        ws.cell(riga, 5, float(peso_reale))
+        ws.cell(riga, 6, float(peso_volume))
+        ws.cell(riga, 7, float(nolo))
+        ws.cell(riga, 8, float(costo_contrassegno))
+        ws.cell(riga, 9, float(costo_assicurazione))
+        ws.cell(riga, 10, float(fuel_euro))
+        ws.cell(riga, 11, fuel_percentuale)
+
+        data_key = s.data
+
+        if data_key not in riepilogo_per_data:
+            riepilogo_per_data[data_key] = {
+                "numero_spedizioni": 0,
+                "nolo": Decimal("0"),
+                "contrassegno": Decimal("0"),
+                "assicurazione": Decimal("0"),
+                "fuel": Decimal("0"),
+            }
+
+        riepilogo_per_data[data_key]["numero_spedizioni"] += 1
+        riepilogo_per_data[data_key]["nolo"] += nolo
+        riepilogo_per_data[data_key]["contrassegno"] += costo_contrassegno
+        riepilogo_per_data[data_key]["assicurazione"] += costo_assicurazione
+        riepilogo_per_data[data_key]["fuel"] += fuel_euro
+
+        riga += 1
+
+    ultima_riga_dati = riga - 1
+
+    ws.cell(riga, 1, f"Spedizioni: {queryset.count()}").font = Font(bold=True)
+    ws.cell(riga, 6, "TOTALI").font = Font(bold=True)
+    ws.cell(riga, 7, f"=SUM(G{prima_riga_dati}:G{ultima_riga_dati})")
+    ws.cell(riga, 8, f"=SUM(H{prima_riga_dati}:H{ultima_riga_dati})")
+    ws.cell(riga, 9, f"=SUM(I{prima_riga_dati}:I{ultima_riga_dati})")
+    ws.cell(riga, 10, f"=SUM(J{prima_riga_dati}:J{ultima_riga_dati})")
+    # TOTALONE G+H+I+J
+    ws.cell(riga, 11, f"=SUM(G{riga}:J{riga})")
+
+    for c in range(1, 12):
+        ws.cell(riga, c).font = Font(bold=True)
+
+    riga += 3
+
+    ws.cell(riga, 1, "Riepilogo per giorno").font = Font(bold=True)
+    riga += 1
+
+    headers_riepilogo = [
+        "Data",
+        "Numero spedizioni",
+        "Nolo €",
+        "Contrassegno €",
+        "Assicurazione €",
+        "Fuel €",
+        "Tot. imp.",
+    ]
+
+    for col, header in enumerate(headers_riepilogo, start=1):
+        ws.cell(riga, col, header).font = Font(bold=True)
+
+    riga += 1
+    prima_riga_riepilogo = riga
+
+    for data_key in sorted(riepilogo_per_data.keys()):
+        dati = riepilogo_per_data[data_key]
+
+        ws.cell(riga, 1, data_key)
+        ws.cell(riga, 2, dati["numero_spedizioni"])
+        ws.cell(riga, 3, float(dati["nolo"]))
+        ws.cell(riga, 4, float(dati["contrassegno"]))
+        ws.cell(riga, 5, float(dati["assicurazione"]))
+        ws.cell(riga, 6, float(dati["fuel"]))
+
+        riga += 1
+
+    ultima_riga_riepilogo = riga - 1
+
+    ws.cell(riga, 1, "TOTALI").font = Font(bold=True)
+    ws.cell(riga, 2, f"=SUM(B{prima_riga_riepilogo}:B{ultima_riga_riepilogo})")
+    ws.cell(riga, 3, f"=SUM(C{prima_riga_riepilogo}:C{ultima_riga_riepilogo})")
+    ws.cell(riga, 4, f"=SUM(D{prima_riga_riepilogo}:D{ultima_riga_riepilogo})")
+    ws.cell(riga, 5, f"=SUM(E{prima_riga_riepilogo}:E{ultima_riga_riepilogo})")
+    ws.cell(riga, 6, f"=SUM(F{prima_riga_riepilogo}:F{ultima_riga_riepilogo})")
+    ws.cell(riga, 7, f"=SUM(C{riga}:F{riga})")
+
+    for c in range(1, 7):
+        ws.cell(riga, c).font = Font(bold=True)
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="spedizioni.xlsx"'
+
+    wb.save(response)
+    return response

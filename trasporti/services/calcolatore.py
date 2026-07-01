@@ -235,7 +235,7 @@ class CalcolatriceService:
             {"label": "Scaglione", "value": scaglione_testo, "is_html": True},
             {"label": "Supplementi con fuel applicati", "value": stringa_supp_con_fuel, "is_html": True},
             {"label": "Supplementi senza fuel applicati", "value": stringa_supp_senza_fuel, "is_html": True},
-            {"label": "Subtotale Euro imponibile", "value": f"<b>€ {subtotale_euro_imponibile:.2f}</b>", "is_html": True},
+            {"label": "Subtotale imponibile €", "value": f"<b>€ {subtotale_euro_imponibile:.2f}</b>", "is_html": True},
             {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>",  "is_html": True},
             {"label": "IVA", "value": f"<b>€ {iva_euro:.2f}</b>", "is_html": True},
             {"label": "TOTALE IVA INCLUSA", "value": f"<b>€ {totale_con_iva_euro:.2f}</b>", "is_total": True,
@@ -496,6 +496,7 @@ class CalcolatriceService:
                 + costo_fuel_calcolato
         )
         #subtotale euro imponibile
+        #subtotale imponibile €
         print(f'DEBUG FEDEX subtotale_euro_imponibile {prezzo}')
 
         imponibile_senza_fuel = (
@@ -581,7 +582,7 @@ class CalcolatriceService:
             {"label": "Nolo", "value": f"<b>€ {nolo:.2f}</b>", "is_html": True},
             {"label": "Supplementi con fuel applicati", "value": stringa_supp_con_fuel, "is_html": True},
             {"label": "Supplementi senza fuel applicati", "value": stringa_supp_senza_fuel, "is_html": True},
-            {"label": "Subtotale euro imponibile", "value": f"<b>€ {prezzo:.2f}</b>", "is_total": True, "is_html": True},
+            {"label": "Subtotale imponibile €", "value": f"<b>€ {prezzo:.2f}</b>", "is_html": True},
             {"label": "di cui imponibile senza fuel", "value": f"<b>€ {imponibile_senza_fuel:.2f}</b>", "is_html": True},
             {"label": "IVA", "value": f"<b>€ {iva_euro:.2f}</b>", "is_html": True},
             {"label": "TOTALE IVA INCLUSA", "value": f"<b>€ {totale_con_iva_euro:.2f}</b>", "is_total": True, "is_html": True},

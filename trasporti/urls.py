@@ -8,5 +8,6 @@ urlpatterns = [
     path('logout', loggout, name='logout'),
     path("spedizioni/", spedizioni.as_view(), name="spedizioni"),
     path("controllo_tariffe",controllo_tariffe, name="controllo_tariffe"),
+    path("spedizioni/export-excel/", esporta_spedizioni_excel, name="esporta_spedizioni_excel"),
 
 ]

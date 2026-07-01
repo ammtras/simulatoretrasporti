@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
 {% block content %}
 <style>
+
     .debug-table {
-        font-family: 'Courier New', monospace;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         font-size: 12px;
         width: 100%;
         border-collapse: collapse;
@@ -27,7 +28,7 @@
     +
 </a>
 <h1>Lista Spedizioni salvate</h1>
-<form method="GET" action="." class="bg-light p-3 rounded shadow-sm border mb-4">
+<form method="GET" action="." class="bg-light p-3 rounded shadow-sm border mb-3">
 
     <div class="d-flex flex-wrap align-items-end gap-3">
 
@@ -114,16 +115,21 @@
     </div>
 
 </form>
+<a href="{% url 'esporta_spedizioni_excel' %}?{{ request.GET.urlencode }}"
+   class="btn btn-info btn-sm mb-3">
+    Esporta Excel per controllo fatture GLS (imposta prima i filtri..)
+</a>
 <table class="debug-table">
     <thead>
     <tr>
 
         <th>Dettaglio Spedizione</th>
-        <th>Dettaglio Colli misure e peso reale</th>
+        <th style="width:230px;">Dettaglio Colli misure e peso reale</th>
         <th>Dettaglio calcolo preventivo</th>
-        <th>Preventivo (totale imponibile senza fuel)</th>
-        <th>Preventivo (totale imponibile con fuel)</th>
-        <th>Preventivo (totale iva inclusa)</th>
+        <th style="width:80px;">impon.</th>
+        <th style="width:80px;">IVA</th>
+        <th style="width:80px;">Tot. <br> IVA incl.</th>
+
 
 
     </tr>
@@ -133,13 +139,13 @@
     {% for s in spedizioni %}
     <tr style="background:#f9f9f9;">
 
-        <td> {{ s.data|date:"d/m/Y" }} <br>
-            da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br>
+        <td> {{ s.data|date:"d/m/Y" }} | <b> {{s.trasportatore_scelto}} </b>  <br><br>
+            da {{ s.da_cliente_citta }} a {{ s.a_cliente_citta }} <br><br>
             da {{ s.da_zona }} a {{ s.a_zona }} <br>
-            <br>
+            <br><br>
             contrassegno € {{s.contrassegno_euro}}<br>
             assicurazione € {{s.assicurazione_euro}}<br>
-            {{s.trasportatore_scelto}}
+
 
 
         </td>
@@ -176,17 +182,30 @@
 
 
         </td>
-        <td>
-            {{ totale_imponibile_senza_fuel|floatformat:2 }}
-        </td>
-        <td>
-            {{ totale_imponibile_con_fuel|floatformat:2 }}
-        </td>
          <td>
-            totale iva inclusa
-        </td>
+                {% for riga in s.dettaglio.items %}
+                    {% if riga.label == "Totale imponibile" or riga.label == "Subtotale imponibile €" %}
+                        {{ riga.value|safe }}
+                    {% endif %}
+                {% endfor %}
+            </td>
 
-        </td></td>
+            <td>
+                {% for riga in s.dettaglio.items %}
+                    {% if riga.label == "IVA" %}
+                        {{ riga.value|safe }}
+                    {% endif %}
+                {% endfor %}
+            </td>
+
+            <td>
+                {% for riga in s.dettaglio.items %}
+                    {% if riga.label == "TOTALE IVA INCLUSA" %}
+                        {{ riga.value|safe }}
+                    {% endif %}
+                {% endfor %}
+            </td>
+
 
     </tr>
 
@@ -198,7 +217,6 @@
     {% endfor %}
     </tbody>
 </table>
-
 
 <div class="d-flex justify-content-end align-items-center mb-3">
     <span class="text-muted me-auto">
